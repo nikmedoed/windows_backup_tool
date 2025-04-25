@@ -15,18 +15,19 @@ class CheckTree(ttk.Treeview):
         self.tag_configure("unchecked", foreground="gray")
         self.bind("<Button-1>", self._on_click, True)
 
-    def insert(self, parent, index, iid=None, checked=True, **kw):
+    def insert(self, parent, index, iid=None, checked: bool = False, **kw):
         """
-        При добавлении указываем checked=True (чек) или False (анчек).
-        Сохраняем mapping path→iid.
+        checked=False → ☐ (копируется)
+        checked=True  → ☑ (исключено)
         """
         path = kw.get("values", [""])[0]
         mark = self.CHECK if checked else self.UNCHECK
         text = kw.pop("text")
-        iw = super().insert(parent, index, iid, text=f"{mark} {text}", values=[path])
+        node_id = super().insert(parent, index, iid, text=f"{mark} {text}", values=[path])
         if path:
-            self.node_map[path] = iw
-        return iw
+            self.node_map[path] = node_id
+        return node_id
+
 
     def _on_click(self, ev):
         iid = self.identify_row(ev.y)
@@ -65,17 +66,15 @@ class ExcludeDialog(tk.Toplevel):
         self.transient(master)
         self.grab_set()
 
-        # верхняя панель кнопок
-        # верхняя панель кнопок + легенда
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=10, pady=5)
 
-        # легенда в баре
         legend = ttk.Label(
             bar,
-            text="☑ – включено (копируется),    ☐ – исключено (не копируется)",
+            text="☐ – копируется,    ☑ – исключено",
             foreground="blue"
         )
+
         legend.pack(side="left", padx=(0, 20))
 
         # кнопки управления
@@ -83,21 +82,18 @@ class ExcludeDialog(tk.Toplevel):
         ttk.Button(bar, text="Свернуть всё", command=self._collapse).pack(side="left", padx=5)
         ttk.Button(bar, text="Сохранить", command=self._save).pack(side="right")
 
-        # само дерево
         self.tree = CheckTree(self)
         self.tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        # строим полный дерево по каждому source
         for rule in self.cfg.sources:
             root_id = self.tree.insert(
                 "", "end",
                 text=os.path.basename(rule.source) or rule.source,
                 values=[rule.source],
-                checked=True
+                checked=False
             )
             self._add_subitems(root_id, Path(rule.source))
 
-        # отмечаем уже сохранённые исключения как UNCHECK
         for rule in self.cfg.sources:
             for excl in rule.excludes:
                 abs_path = str(Path(rule.source) / excl)
@@ -113,7 +109,7 @@ class ExcludeDialog(tk.Toplevel):
                     parent_iid, "end",
                     text=entry.name,
                     values=[str(entry)],
-                    checked=True
+                    checked=False
                 )
                 if entry.is_dir():
                     self._add_subitems(iid, entry)
@@ -127,11 +123,9 @@ class ExcludeDialog(tk.Toplevel):
         self.tree.collapse_all()
 
     def _save(self):
-        # очистим старые excludes
         for rule in self.cfg.sources:
             rule.excludes.clear()
 
-        # пройдём по всем узлам, найдём UNCHECKED и сохраним относительный путь
         for rule in self.cfg.sources:
             src = Path(rule.source)
             for path_str, iid in self.tree.node_map.items():
