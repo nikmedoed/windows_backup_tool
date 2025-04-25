@@ -1,4 +1,5 @@
-# BackupApp
+# Windows Backup Tool
+##### Copy only useful settings from AppData trash
 
 Лёгкий бэкап-инструмент для настроек/сейвов (Windows).
 
