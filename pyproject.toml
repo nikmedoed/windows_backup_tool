@@ -1,0 +1,12 @@
+[project]
+name = "windows-backup-tool"
+version = "0.1.0"
+description = "Simple backup tool with GUI"
+requires-python = ">=3.8"
+
+[project.dependencies]
+tqdm = "*"
+elevate = {optional = true}
+
+[project.optional-dependencies]
+gui = ["elevate"]
