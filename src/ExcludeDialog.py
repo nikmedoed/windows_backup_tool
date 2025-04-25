@@ -1,137 +1,90 @@
-import os
-import tkinter as tk
 from pathlib import Path
-from tkinter import ttk
+
+from PySide6 import QtWidgets, QtCore
 
 from src.config import Settings
 
 
-class CheckTree(ttk.Treeview):
-    CHECK, UNCHECK = "☑", "☐"
-
-    def __init__(self, master, **kw):
-        super().__init__(master, show="tree", **kw)
-        self.node_map: dict[str, str] = {}  # path → iid
-        self.tag_configure("unchecked", foreground="gray")
-        self.bind("<Button-1>", self._on_click, True)
-
-    def insert(self, parent, index, iid=None, checked: bool = False, **kw):
-        """
-        checked=False → ☐ (копируется)
-        checked=True  → ☑ (исключено)
-        """
-        path = kw.get("values", [""])[0]
-        mark = self.CHECK if checked else self.UNCHECK
-        text = kw.pop("text")
-        node_id = super().insert(parent, index, iid, text=f"{mark} {text}", values=[path])
-        if path:
-            self.node_map[path] = node_id
-        return node_id
-
-
-    def _on_click(self, ev):
-        iid = self.identify_row(ev.y)
-        x = ev.x
-        # допустим, чек-бокс в первых 20px
-        if not iid or x > 20:
-            return
-        self._toggle_recursive(iid)
-
-    def _toggle_recursive(self, iid: str):
-        txt = self.item(iid, "text")
-        mark, name = txt[0], txt[2:]
-        new_mark = self.UNCHECK if mark == self.CHECK else self.CHECK
-        self.item(iid, text=f"{new_mark} {name}")
-        # рекурсивно для детей
-        for ch in self.get_children(iid):
-            self._toggle_recursive(ch)
-
-    def expand_all(self, iid=""):
-        for ch in self.get_children(iid):
-            self.item(ch, open=True)
-            self.expand_all(ch)
-
-    def collapse_all(self, iid=""):
-        for ch in self.get_children(iid):
-            self.item(ch, open=False)
-            self.collapse_all(ch)
-
-
-class ExcludeDialog(tk.Toplevel):
-    def __init__(self, master, cfg: Settings):
-        super().__init__(master)
+class ExcludeDialog(QtWidgets.QDialog):
+    def __init__(self, cfg: Settings, parent=None):
+        super().__init__(parent)
         self.cfg = cfg
-        self.title("Исключения")
-        self.geometry("700x500")
-        self.transient(master)
-        self.grab_set()
+        self.setWindowTitle("Исключения")
+        self.resize(700, 500)
 
-        bar = ttk.Frame(self)
-        bar.pack(fill="x", padx=10, pady=5)
+        vlay = QtWidgets.QVBoxLayout(self)
 
-        legend = ttk.Label(
-            bar,
-            text="☐ – копируется,    ☑ – исключено",
-            foreground="blue"
-        )
+        # легенда и кнопки
+        hlay = QtWidgets.QHBoxLayout()
+        hlay.addWidget(QtWidgets.QLabel("☐ – копируется,   ☑ – исключено"), 1)
+        self.btn_expand = QtWidgets.QPushButton("Развернуть всё")
+        self.btn_collapse = QtWidgets.QPushButton("Свернуть всё")
+        self.btn_save = QtWidgets.QPushButton("Сохранить")
+        hlay.addWidget(self.btn_expand)
+        hlay.addWidget(self.btn_collapse)
+        hlay.addWidget(self.btn_save)
+        vlay.addLayout(hlay)
 
-        legend.pack(side="left", padx=(0, 20))
+        # дерево
+        self.tree = QtWidgets.QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        vlay.addWidget(self.tree, 1)
 
-        # кнопки управления
-        ttk.Button(bar, text="Развернуть всё", command=self._expand).pack(side="left")
-        ttk.Button(bar, text="Свернуть всё", command=self._collapse).pack(side="left", padx=5)
-        ttk.Button(bar, text="Сохранить", command=self._save).pack(side="right")
-
-        self.tree = CheckTree(self)
-        self.tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
+        # заполнение
         for rule in self.cfg.sources:
-            root_id = self.tree.insert(
-                "", "end",
-                text=os.path.basename(rule.source) or rule.source,
-                values=[rule.source],
-                checked=False
-            )
-            self._add_subitems(root_id, Path(rule.source))
+            root = QtWidgets.QTreeWidgetItem(self.tree)
+            root.setText(0, Path(rule.source).name or rule.source)
+            root.setData(0, QtCore.Qt.UserRole, rule.source)
+            root.setCheckState(0, QtCore.Qt.Unchecked)
+            self._add_items(root, Path(rule.source))
 
+        # отмечаем уже существующие исключения
         for rule in self.cfg.sources:
             for excl in rule.excludes:
                 abs_path = str(Path(rule.source) / excl)
-                iid = self.tree.node_map.get(abs_path)
-                if iid:
-                    self.tree._toggle_recursive(iid)
+                self._mark_path(self.tree.invisibleRootItem(), abs_path)
 
-    def _add_subitems(self, parent_iid: str, path: Path):
-        """Рекурсивно добавляем все файлы/папки под узлом parent_iid."""
+        # сигналы
+        self.btn_expand.clicked.connect(self.tree.expandAll)
+        self.btn_collapse.clicked.connect(self.tree.collapseAll)
+        self.btn_save.clicked.connect(self.accept)
+
+    def _add_items(self, parent: QtWidgets.QTreeWidgetItem, path: Path):
         try:
             for entry in sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower())):
-                iid = self.tree.insert(
-                    parent_iid, "end",
-                    text=entry.name,
-                    values=[str(entry)],
-                    checked=False
-                )
+                child = QtWidgets.QTreeWidgetItem(parent)
+                child.setText(0, entry.name)
+                child.setData(0, QtCore.Qt.UserRole, str(entry))
+                child.setCheckState(0, QtCore.Qt.Unchecked)
                 if entry.is_dir():
-                    self._add_subitems(iid, entry)
+                    self._add_items(child, entry)
         except PermissionError:
             pass
 
-    def _expand(self):
-        self.tree.expand_all()
+    def _mark_path(self, item: QtWidgets.QTreeWidgetItem, target: str):
+        # обходим дерево, находим по UserRole
+        if item.data(0, QtCore.Qt.UserRole) == target:
+            item.setCheckState(0, QtCore.Qt.Checked)
+        for i in range(item.childCount()):
+            self._mark_path(item.child(i), target)
 
-    def _collapse(self):
-        self.tree.collapse_all()
+    def get_excludes(self) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        root_count = self.tree.topLevelItemCount()
+        for i in range(root_count):
+            root = self.tree.topLevelItem(i)
+            src = root.data(0, QtCore.Qt.UserRole)
+            excludes: list[str] = []
 
-    def _save(self):
-        for rule in self.cfg.sources:
-            rule.excludes.clear()
+            def recurse(it: QtWidgets.QTreeWidgetItem):
+                for j in range(it.childCount()):
+                    ch = it.child(j)
+                    state = ch.checkState(0)
+                    p = Path(ch.data(0, QtCore.Qt.UserRole))
+                    if state == QtCore.Qt.Checked:
+                        excludes.append(str(p.relative_to(Path(src))).replace("\\", "/"))
+                    recurse(ch)
 
-        for rule in self.cfg.sources:
-            src = Path(rule.source)
-            for path_str, iid in self.tree.node_map.items():
-                mark = self.tree.item(iid, "text")[0]
-                if mark == CheckTree.UNCHECK and path_str.startswith(str(src)):
-                    rel = Path(path_str).relative_to(src)
-                    rule.excludes.append(str(rel).replace("\\", "/"))
-
-        self.destroy()
+            recurse(root)
+            result[src] = excludes
+        return result
