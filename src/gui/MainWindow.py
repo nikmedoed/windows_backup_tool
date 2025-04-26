@@ -225,34 +225,38 @@ class MainWindow(QtWidgets.QMainWindow):
                     root_size -= dir_size(path)
             total += max(root_size, 0)
         return total
-
     def _run(self):
-        self._save()
+        # Очищаем старые логи и прогресс
+        self.txt_log.clear()
+        self.progress_bar.setValue(0)
         self.status_label.setText("Копирование…")
         self.setEnabled(False)
-        q = queue.Queue()
 
+        q = queue.Queue()
         def prog(i, tot):
             q.put(("prog", i, tot))
+        def log(msg):
+            q.put(("log", msg))
 
-        def log(m):
-            q.put(("log", m))
-
+        # Стартуем
         threading.Thread(target=run_backup, args=(self.cfg, prog, log), daemon=True).start()
         QtCore.QTimer.singleShot(100, lambda: self._process_queue(q))
+
 
     def _process_queue(self, q: queue.Queue):
         while not q.empty():
             typ, *data = q.get()
             if typ == "prog":
                 i, tot = data
-                if tot:
-                    self.progress_bar.setValue(int(i / tot * 100))
+                self.progress_bar.setValue(int(i / tot * 100) if tot else 100)
             else:
                 self.txt_log.append(data[0])
+
         if self.progress_bar.value() < 100:
             QtCore.QTimer.singleShot(100, lambda: self._process_queue(q))
         else:
+            # Завершено
             self.setEnabled(True)
             self.status_label.setText("Готово")
+            self.progress_bar.setValue(100)
             self._update_backup_size()
