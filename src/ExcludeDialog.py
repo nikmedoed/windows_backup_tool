@@ -1,18 +1,3 @@
-from __future__ import annotations
-
-"""ExcludeDialog — переработанная версия без фризов.
-
-Главная идея:
-1. **Ленивая подзагрузка**. При открытии диалога строятся *только* корневые
-   каталоги-источники.  Дочерние элементы подгружаются при первом раскрытии
-   каталога.
-2. На время подзагрузки курсор показывает *WaitCursor*.
-3. Подсчёт размеров остаётся в фоновом потоке, поэтому UI не блокируется.
-
-Это кардинально сокращает начальный обход ФС и устраняет зависание при
-нажатии «Исключать».
-"""
-
 import os
 import threading
 from pathlib import Path
@@ -42,11 +27,8 @@ class ExcludeDialog(QtWidgets.QDialog):
         self._restore_checks()
         self._update_legend_async()
 
-    # ────────────────────────────────────────────────────────── UI helpers ────
     def _build_ui(self):
         vbox = QtWidgets.QVBoxLayout(self)
-
-        # — Кнопки —
         btns = [
             ("Разв. все", self._expand_all),
             ("Св. все", self._collapse_all),
@@ -65,7 +47,6 @@ class ExcludeDialog(QtWidgets.QDialog):
         hbtn.addStretch(1)
         vbox.addLayout(hbtn)
 
-        # — Дерево —
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Файл / папка", "Размер"])
         self.tree.setColumnWidth(0, 520)
@@ -73,11 +54,9 @@ class ExcludeDialog(QtWidgets.QDialog):
         self.tree.itemExpanded.connect(self._on_expand)
         vbox.addWidget(self.tree, 1)
 
-        # — Легенда —
         self.lbl_legend = QtWidgets.QLabel()
         vbox.addWidget(self.lbl_legend)
 
-    # ────────────────────────────────────────────── populate (lazy) ──────────
     def _populate_roots(self):
         self.tree.clear()
         for rule in self._cfg.sources:
@@ -106,7 +85,7 @@ class ExcludeDialog(QtWidgets.QDialog):
 
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            parent.takeChildren()  # remove dummy if any
+            parent.takeChildren()
             with os.scandir(path) as it:
                 for entry in it:
                     child = self._make_item(entry.name, Path(entry.path), entry.is_dir(follow_symlinks=False))
@@ -120,7 +99,6 @@ class ExcludeDialog(QtWidgets.QDialog):
     def _on_expand(self, item: QtWidgets.QTreeWidgetItem):
         self._load_children(item)
 
-    # ────────────────────────────────────────────────────────── checks ────────
     def _set_state(self, state: QtCore.Qt.CheckState):
         self._set_state_rec(self.tree.invisibleRootItem(), state)
 
@@ -130,8 +108,20 @@ class ExcludeDialog(QtWidgets.QDialog):
             self._set_state_rec(itm.child(i), st)
 
     def _on_item_changed(self, item: QtWidgets.QTreeWidgetItem):
-        self._bubble_up(item)
+        with QtCore.QSignalBlocker(self.tree):
+            self._propagate_down(item)
+            self._bubble_up(item)
         self._update_legend_async()
+
+    def _propagate_down(self, itm: QtWidgets.QTreeWidgetItem):
+        state = itm.checkState(0)
+        if state == QtCore.Qt.PartiallyChecked:
+            return
+        self._load_children(itm)
+        for i in range(itm.childCount()):
+            ch = itm.child(i)
+            ch.setCheckState(0, state)
+            self._propagate_down(ch)
 
     def _bubble_up(self, itm: QtWidgets.QTreeWidgetItem):
         pr = itm.parent()
@@ -144,7 +134,6 @@ class ExcludeDialog(QtWidgets.QDialog):
                          QtCore.Qt.PartiallyChecked)
         self._bubble_up(pr)
 
-    # ───────────────────────── restore saved excludes ───────────────────────
     def _restore_checks(self):
         for rule_idx, rule in enumerate(self._cfg.sources):
             root_itm = self.tree.topLevelItem(rule_idx)
@@ -160,14 +149,12 @@ class ExcludeDialog(QtWidgets.QDialog):
             return True
         if not tgt.is_relative_to(path):
             return False
-        # ensure children are loaded
         self._load_children(parent)
         for i in range(parent.childCount()):
             if self._mark_path_checked(parent.child(i), tgt):
                 return True
         return False
 
-    # ───────────────────────────────────────── legend (async) ────────────────
     def _update_legend_async(self):
         threading.Thread(target=self._update_legend, daemon=True).start()
 
@@ -190,7 +177,6 @@ class ExcludeDialog(QtWidgets.QDialog):
         if st == QtCore.Qt.Checked:
             size = self._dir_size_cached(path) if path.is_dir() else itm.data(0, self.SIZE_ROLE)
             return size, 1
-        # partially checked
         total, cnt = 0, 0
         for i in range(itm.childCount()):
             t, c = self._accumulate(itm.child(i))
@@ -211,7 +197,6 @@ class ExcludeDialog(QtWidgets.QDialog):
         self._size_cache[p] = s
         return s
 
-    # ─────────────────────────────── misc helpers ───────────────────────────
     def _expand_all(self):
         self.tree.expandAll()
 
@@ -219,19 +204,24 @@ class ExcludeDialog(QtWidgets.QDialog):
         self.tree.collapseAll()
 
     def _expand_cur(self):
-        itm = self.tree.currentItem()
-        itm and self.tree.expandRecursively(itm)
+        self._set_expanded_recursive(self.tree.currentItem(), True)
 
     def _collapse_cur(self):
-        itm = self.tree.currentItem()
-        itm and self.tree.collapseRecursively(itm)
+        self._set_expanded_recursive(self.tree.currentItem(), False)
+
+    def _set_expanded_recursive(self, itm: QtWidgets.QTreeWidgetItem, expand: bool):
+        if itm is None:
+            return
+        self._load_children(itm)
+        self.tree.setItemExpanded(itm, expand)
+        for i in range(itm.childCount()):
+            self._set_expanded_recursive(itm.child(i), expand)
 
     def _stretch_h(self):
         g = self.geometry()
         scr = QtWidgets.QApplication.primaryScreen().availableGeometry()
         self.setGeometry(g.x(), 0, g.width(), scr.height())
 
-    # ───────────────────────── public API ───────────────────────────────────
     def get_excludes(self) -> Dict[str, List[str]]:
         res: Dict[str, List[str]] = {}
         for idx, rule in enumerate(self._cfg.sources):
