@@ -209,11 +209,12 @@ class ExcludeDialog(QtWidgets.QDialog):
     def _collapse_cur(self):
         self._set_expanded_recursive(self.tree.currentItem(), False)
 
-    def _set_expanded_recursive(self, itm: QtWidgets.QTreeWidgetItem, expand: bool):
+    def _set_expanded_recursive(self, itm: QtWidgets.QTreeWidgetItem | None, expand: bool):
         if itm is None:
             return
         self._load_children(itm)
-        self.tree.setItemExpanded(itm, expand)
+        # было: self.tree.setItemExpanded(itm, expand)
+        itm.setExpanded(expand)  # ← правка
         for i in range(itm.childCount()):
             self._set_expanded_recursive(itm.child(i), expand)
 
