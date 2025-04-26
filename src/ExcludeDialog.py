@@ -3,26 +3,34 @@ import threading
 from pathlib import Path
 from typing import Dict, List
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from .config import Settings
 from .utils import human_readable
 
 
 class ExcludeDialog(QtWidgets.QDialog):
-    SIZE_ROLE = QtCore.Qt.UserRole + 1   # int: size in bytes (files only)
-    PATH_ROLE = QtCore.Qt.UserRole + 2   # Path: absolute
-    LOADED_ROLE = QtCore.Qt.UserRole + 3 # bool: children already added
+    SIZE_ROLE = QtCore.Qt.UserRole + 1  # int: size in bytes (files only)
+    PATH_ROLE = QtCore.Qt.UserRole + 2  # Path: absolute
+    LOADED_ROLE = QtCore.Qt.UserRole + 3  # bool: children already added
 
     def __init__(self, cfg: Settings, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Исключения")
-        self.resize(920, 640)
+        # Фиксируем высоту, ширину установим по кнопкам
+        self.resize(0, 640)
         self._cfg = cfg
         self._size_cache: dict[Path, int] = {}
         self._legend_lock = threading.Lock()
 
         self._build_ui()
+        # Устанавливаем ширину окна по ширине ряда кнопок
+        btn_layout = self.layout().itemAt(0).layout()
+        btn_width = btn_layout.sizeHint().width()
+        margins = self.layout().contentsMargins()
+        total_width = btn_width + margins.left() + margins.right()
+        self.resize(total_width, self.height())
+
         self._populate_roots()
         self._restore_checks()
         self._update_legend_async()
@@ -167,7 +175,8 @@ class ExcludeDialog(QtWidgets.QDialog):
                 total += t
                 cnt += c
             txt = f"Отмечено: {cnt} • Размер: {human_readable(total)}"
-            QtCore.QMetaObject.invokeMethod(self.lbl_legend, "setText", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(str, txt))
+            QtCore.QMetaObject.invokeMethod(self.lbl_legend, "setText", QtCore.Qt.QueuedConnection,
+                                            QtCore.Q_ARG(str, txt))
 
     def _accumulate(self, itm: QtWidgets.QTreeWidgetItem):
         st = itm.checkState(0)
