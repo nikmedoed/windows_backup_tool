@@ -5,8 +5,8 @@ from typing import Dict, List
 
 from PySide6 import QtCore, QtWidgets
 
-from .config import Settings
-from .utils import human_readable
+from src.config import Settings
+from src.utils import human_readable
 
 
 class ExcludeDialog(QtWidgets.QDialog):

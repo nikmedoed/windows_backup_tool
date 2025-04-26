@@ -4,17 +4,12 @@ from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
 
+from .ExcludeDialog import ExcludeDialog
 from src.config import Settings, PathRule
 from src.copier import run_backup
-from src.scheduler import (
-    schedule_daily as daily,
-    schedule_weekly as weekly,
-    schedule_onstart as onstart,
-    schedule_onidle as onidle,
-    delete, _exists
-)
-from .ExcludeDialog import ExcludeDialog
-from .utils import human_readable, dir_size
+from src.scheduler import _exists, delete, schedule_daily as daily, schedule_weekly as weekly, \
+    schedule_onstart as onstart, schedule_onidle as onidle
+from src.utils import dir_size, human_readable
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -24,12 +19,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg = Settings.load() or Settings(target_dir="")
         self._build_ui()
 
+    # ------------------------- UI -------------------------
     def _build_ui(self):
         cw = QtWidgets.QWidget()
         self.setCentralWidget(cw)
         vlay = QtWidgets.QVBoxLayout(cw)
 
-        # Цель
+        # ---------- Target dir ----------
         hlay1 = QtWidgets.QHBoxLayout()
         hlay1.addWidget(QtWidgets.QLabel("Цель копии:"))
         self.le_target = QtWidgets.QLineEdit()
@@ -39,8 +35,10 @@ class MainWindow(QtWidgets.QMainWindow):
         hlay1.addWidget(btn_pick)
         vlay.addLayout(hlay1)
 
-        # Источники + кнопки
+        # ---------- Sources + Excludes ----------
         hlay2 = QtWidgets.QHBoxLayout()
+
+        # Sources list ----------------
         src_box = QtWidgets.QVBoxLayout()
         src_box.addWidget(QtWidgets.QLabel("Источники:"))
         self.lst_src = QtWidgets.QListWidget()
@@ -54,7 +52,7 @@ class MainWindow(QtWidgets.QMainWindow):
         src_box.addLayout(btns)
         hlay2.addLayout(src_box, 1)
 
-        # Исключения
+        # Excludes list ----------------
         excl_box = QtWidgets.QVBoxLayout()
         excl_box.addWidget(QtWidgets.QLabel("Исключения:"))
         self.lst_excl = QtWidgets.QListWidget()
@@ -66,7 +64,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         vlay.addLayout(hlay2, 1)
 
-        # Периодичность
+        # ---------- Schedule ----------
         gb = QtWidgets.QGroupBox("Периодичность")
         gl = QtWidgets.QVBoxLayout(gb)
         self.cb_day = QtWidgets.QCheckBox("Ежедневно 03:00")
@@ -77,7 +75,7 @@ class MainWindow(QtWidgets.QMainWindow):
             gl.addWidget(cb)
         vlay.addWidget(gb)
 
-        # Кнопки управления
+        # ---------- Controls ----------
         hlay3 = QtWidgets.QHBoxLayout()
         btn_save = QtWidgets.QPushButton("Сохранить")
         btn_restore = QtWidgets.QPushButton("Восстановить")
@@ -93,14 +91,14 @@ class MainWindow(QtWidgets.QMainWindow):
         hlay3.addWidget(btn_exit)
         vlay.addLayout(hlay3)
 
-        # Статус и размер
+        # ---------- Status & size ----------
         self.status_label = QtWidgets.QLabel("")
         self.status_label.setStyleSheet("color: green;")
         vlay.addWidget(self.status_label)
         self.size_label = QtWidgets.QLabel("")
         vlay.addWidget(self.size_label)
 
-        # Прогресс и лог
+        # ---------- Progress & log ----------
         self.progressBar = QtWidgets.QProgressBar()
         vlay.addWidget(self.progressBar)
         self.txt_log = QtWidgets.QTextEdit(readOnly=True)
@@ -109,26 +107,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._load_fields()
 
+    # ------------------------- Helpers -------------------------
     def _load_fields(self):
         self.le_target.setText(self.cfg.target_dir)
         self.lst_src.clear()
         for r in self.cfg.sources:
             self.lst_src.addItem(r.source)
         if self.cfg.sources:
-            self.lst_src.setCurrentRow(0)  # сразу показываем первый источник
+            self.lst_src.setCurrentRow(0)
         self._refresh_excl()
-        self.cb_day.setChecked(False)
-        self.cb_week.setChecked(False)
-        self.cb_start.setChecked(False)
-        self.cb_idle.setChecked(False)
+        for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
+            cb.setChecked(False)
         self._update_backup_size()
 
+    # ---------- Picking paths ----------
     def _pick_target(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(self, "Куда копировать")
         if d:
             self.le_target.setText(d)
             self._update_backup_size()
 
+    # ---------- Source CRUD ----------
     def _add_src(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(self, "Добавить источник")
         if d:
@@ -145,6 +144,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg.sources.clear()
         self._load_fields()
 
+    # ---------- Excludes ----------
     def _refresh_excl(self):
         self.lst_excl.clear()
         row = self.lst_src.currentRow()
@@ -160,7 +160,9 @@ class MainWindow(QtWidgets.QMainWindow):
             for rule in self.cfg.sources:
                 rule.excludes = new_excls.get(rule.source, [])
             self._refresh_excl()
+            self._update_backup_size()  # 🔄 Обновляем сразу после изменения исключений
 
+    # ------------------------- Save / Restore -------------------------
     def _save(self):
         tgt = self.le_target.text().strip()
         if not tgt:
@@ -168,11 +170,16 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.cfg.target_dir = tgt
         self.cfg.save()
-        if _exists(): delete()
-        if self.cb_day.isChecked():   daily()
-        if self.cb_week.isChecked():  weekly()
-        if self.cb_start.isChecked(): onstart()
-        if self.cb_idle.isChecked():  onidle()
+        if _exists():
+            delete()
+        if self.cb_day.isChecked():
+            daily()
+        if self.cb_week.isChecked():
+            weekly()
+        if self.cb_start.isChecked():
+            onstart()
+        if self.cb_idle.isChecked():
+            onidle()
         self.status_label.setText("Сохранено")
         self._update_backup_size()
 
@@ -185,6 +192,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._load_fields()
         self.status_label.setText("Восстановлено")
 
+    # ------------------------- Size calc -------------------------
     def _update_backup_size(self):
         td = Path(self.cfg.target_dir)
         if td.is_dir():
@@ -193,15 +201,18 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.size_label.setText("")
 
+    # ------------------------- Run backup -------------------------
     def _run(self):
         self._save()
         self.status_label.setText("Копирование…")
         self.setEnabled(False)
         q = queue.Queue()
 
-        def prog(i, tot): q.put(("prog", i, tot))
+        def prog(i, tot):
+            q.put(("prog", i, tot))
 
-        def logm(m):     q.put(("log", m))
+        def logm(m):
+            q.put(("log", m))
 
         threading.Thread(target=run_backup, args=(self.cfg, prog, logm), daemon=True).start()
         QtCore.QTimer.singleShot(100, lambda: self._process_queue(q))
@@ -211,7 +222,8 @@ class MainWindow(QtWidgets.QMainWindow):
             typ, *data = q.get()
             if typ == "prog":
                 i, tot = data
-                self.progressBar.setValue(int(i / tot * 100))
+                if tot:
+                    self.progressBar.setValue(int(i / tot * 100))
             else:
                 self.txt_log.append(data[0])
         if self.progressBar.value() < 100:
@@ -219,11 +231,4 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.setEnabled(True)
             self.status_label.setText("Готово")
-
-
-def open_gui():
-    app = QtWidgets.QApplication([])
-    win = MainWindow()
-    win.resize(840, 560)
-    win.show()
-    app.exec()
+            self._update_backup_size()  # 🔄 Обновляем после завершения бэкапа
