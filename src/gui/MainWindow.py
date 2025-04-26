@@ -207,12 +207,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ------------------------- Size calc -------------------------
     def _update_backup_size(self):
-        td = Path(self.cfg.target_dir)
-        if td.is_dir():
-            size = dir_size(td)
-            self.size_label.setText(f"Текущий размер бэкапа: {human_readable(size)}")
-        else:
-            self.size_label.setText("")
+        self.size_label.setText("Подсчёт размера…")
+        threading.Thread(target=self._calc_size_async, daemon=True).start()
+
+    def _calc_size_async(self):
+        size = self._calc_selected_size()
+        txt = f"Оценочный размер копии: {human_readable(size)}"
+        QtCore.QMetaObject.invokeMethod(
+            self.size_label, "setText",
+            QtCore.Qt.QueuedConnection,
+            QtCore.Q_ARG(str, txt)
+        )
+
+    def _calc_selected_size(self) -> int:
+        total = 0
+        for rule in self.cfg.sources:
+            root = Path(rule.source).expanduser().resolve()
+            if not root.exists():
+                continue
+            root_size = dir_size(root)
+            for ex in rule.excludes:
+                p = root / ex
+                if p.exists():
+                    root_size -= dir_size(p)
+            total += max(root_size, 0)
+        return total
 
     # ------------------------- Run backup -------------------------
     def _run(self):
