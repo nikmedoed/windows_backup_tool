@@ -4,12 +4,12 @@ from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
 
-from .ExcludeDialog import ExcludeDialog
 from src.config import Settings, PathRule
 from src.copier import run_backup
 from src.scheduler import _exists, delete, schedule_daily as daily, schedule_weekly as weekly, \
     schedule_onstart as onstart, schedule_onidle as onidle
 from src.utils import dir_size, human_readable
+from .ExcludeDialog import ExcludeDialog
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -23,9 +23,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_ui(self):
         cw = QtWidgets.QWidget()
         self.setCentralWidget(cw)
-        vlay = QtWidgets.QVBoxLayout(cw)
 
-        # ---------- Target dir ----------
+        # --- Подготовка всех блоков UI заранее ---
+        # 1) Target dir
         hlay1 = QtWidgets.QHBoxLayout()
         hlay1.addWidget(QtWidgets.QLabel("Цель копии:"))
         self.le_target = QtWidgets.QLineEdit()
@@ -33,38 +33,30 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_pick = QtWidgets.QPushButton("…")
         btn_pick.clicked.connect(self._pick_target)
         hlay1.addWidget(btn_pick)
-        vlay.addLayout(hlay1)
 
-        # ---------- Sources + Excludes ----------
-        hlay2 = QtWidgets.QHBoxLayout()
-
-        # Sources list ----------------
+        # 2) Источники
         src_box = QtWidgets.QVBoxLayout()
         src_box.addWidget(QtWidgets.QLabel("Источники:"))
         self.lst_src = QtWidgets.QListWidget()
         self.lst_src.currentRowChanged.connect(self._refresh_excl)
-        src_box.addWidget(self.lst_src, 1)
+        src_box.addWidget(self.lst_src)
         btns = QtWidgets.QHBoxLayout()
         for txt, cmd in [("+", self._add_src), ("–", self._del_src), ("Clr", self._clr_src)]:
             b = QtWidgets.QPushButton(txt)
             b.clicked.connect(cmd)
             btns.addWidget(b)
         src_box.addLayout(btns)
-        hlay2.addLayout(src_box, 1)
 
-        # Excludes list ----------------
+        # 3) Исключения
         excl_box = QtWidgets.QVBoxLayout()
-        excl_box.addWidget(QtWidgets.QLabel("Исключения:"))
+        excl_box.addWidget(QtWidgets.QLabel("Исключения в выбранной директории:"))
         self.lst_excl = QtWidgets.QListWidget()
-        excl_box.addWidget(self.lst_excl, 1)
+        excl_box.addWidget(self.lst_excl, 1)  # растягиваем по высоте
         btn_excl = QtWidgets.QPushButton("Исключать")
         btn_excl.clicked.connect(self._edit_excl)
         excl_box.addWidget(btn_excl)
-        hlay2.addLayout(excl_box, 1)
 
-        vlay.addLayout(hlay2, 1)
-
-        # ---------- Schedule ----------
+        # 4) Периодичность
         gb = QtWidgets.QGroupBox("Периодичность")
         gl = QtWidgets.QVBoxLayout(gb)
         self.cb_day = QtWidgets.QCheckBox("Ежедневно 03:00")
@@ -73,38 +65,55 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_idle = QtWidgets.QCheckBox("При пробуждении/простое")
         for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
             gl.addWidget(cb)
-        vlay.addWidget(gb)
 
-        # ---------- Controls ----------
+        # 5) Кнопки управления
         hlay3 = QtWidgets.QHBoxLayout()
-        btn_save = QtWidgets.QPushButton("Сохранить")
-        btn_restore = QtWidgets.QPushButton("Восстановить")
-        btn_run = QtWidgets.QPushButton("Сделать копию")
-        btn_exit = QtWidgets.QPushButton("Выход")
+        btn_save = QtWidgets.QPushButton("Сохранить");
         btn_save.clicked.connect(self._save)
+        btn_restore = QtWidgets.QPushButton("Восстановить");
         btn_restore.clicked.connect(self._restore)
+        btn_run = QtWidgets.QPushButton("Сделать копию");
         btn_run.clicked.connect(self._run)
+        btn_exit = QtWidgets.QPushButton("Выход");
         btn_exit.clicked.connect(self.close)
         for w in (btn_save, btn_restore, btn_run):
             hlay3.addWidget(w)
         hlay3.addStretch(1)
         hlay3.addWidget(btn_exit)
-        vlay.addLayout(hlay3)
 
-        # ---------- Status & size ----------
-        self.status_label = QtWidgets.QLabel("")
+        # 6) Статус и размер
+        self.status_label = QtWidgets.QLabel("");
         self.status_label.setStyleSheet("color: green;")
-        vlay.addWidget(self.status_label)
         self.size_label = QtWidgets.QLabel("")
-        vlay.addWidget(self.size_label)
 
-        # ---------- Progress & log ----------
+        # 7) Прогресс и лог
         self.progressBar = QtWidgets.QProgressBar()
-        vlay.addWidget(self.progressBar)
         self.txt_log = QtWidgets.QTextEdit(readOnly=True)
-        self.txt_log.setFixedHeight(100)
-        vlay.addWidget(self.txt_log)
 
+        # --- Основная сетка: две колонки ---
+        grid = QtWidgets.QGridLayout(cw)
+        # Row 0: цель копии на всю ширину
+        grid.addLayout(hlay1, 0, 0, 1, 2)
+
+        # Row 1: источники (col 0) и исключения (col 1) – исключения растягиваем на 7 строк
+        grid.addLayout(src_box, 1, 0)
+        grid.addLayout(excl_box, 1, 1, 7, 1)
+
+        # Далее в первой колонке (col 0):
+        grid.addWidget(gb, 2, 0)  # периодичность
+        grid.addLayout(hlay3, 3, 0)  # кнопки
+        grid.addWidget(self.status_label, 4, 0)
+        grid.addWidget(self.size_label, 5, 0)
+        grid.addWidget(self.progressBar, 6, 0)
+        grid.addWidget(self.txt_log, 7, 0)
+
+        # Настраиваем растяжки, чтобы первая колонка и последняя строка в первом столбце расширялись,
+        # а исключения (col 1) были ещё выше:
+        grid.setRowStretch(8, 1)
+        grid.setColumnStretch(0, 5)
+        grid.setColumnStretch(1, 4)
+
+        # Загружаем сохранённые значения
         self._load_fields()
 
     # ------------------------- Helpers -------------------------
