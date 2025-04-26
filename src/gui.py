@@ -1,38 +1,20 @@
-import os
-import threading
 import queue
+import threading
 from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
+
 from src.config import Settings, PathRule
 from src.copier import run_backup
 from src.scheduler import (
-    schedule_daily   as daily,
-    schedule_weekly  as weekly,
+    schedule_daily as daily,
+    schedule_weekly as weekly,
     schedule_onstart as onstart,
-    schedule_onidle  as onidle,
+    schedule_onidle as onidle,
     delete, _exists
 )
-from .ExcludeDialog import ExcludeDialog  # предполагаем тот же путь
-
-
-def human_readable(size: int) -> str:
-    for unit in ['B','KB','MB','GB','TB']:
-        if size < 1024:
-            return f"{size:.2f} {unit}"
-        size /= 1024
-    return f"{size:.2f} PB"
-
-
-def dir_size(path: Path) -> int:
-    total = 0
-    for p in path.rglob('*'):
-        try:
-            if p.is_file():
-                total += p.stat().st_size
-        except Exception:
-            pass
-    return total
+from .ExcludeDialog import ExcludeDialog
+from .utils import human_readable, dir_size
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -87,20 +69,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # Периодичность
         gb = QtWidgets.QGroupBox("Периодичность")
         gl = QtWidgets.QVBoxLayout(gb)
-        self.cb_day   = QtWidgets.QCheckBox("Ежедневно 03:00")
-        self.cb_week  = QtWidgets.QCheckBox("Еженедельно (Пн 03:00)")
+        self.cb_day = QtWidgets.QCheckBox("Ежедневно 03:00")
+        self.cb_week = QtWidgets.QCheckBox("Еженедельно (Пн 03:00)")
         self.cb_start = QtWidgets.QCheckBox("При включении системы")
-        self.cb_idle  = QtWidgets.QCheckBox("При пробуждении/простое")
+        self.cb_idle = QtWidgets.QCheckBox("При пробуждении/простое")
         for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
             gl.addWidget(cb)
         vlay.addWidget(gb)
 
         # Кнопки управления
         hlay3 = QtWidgets.QHBoxLayout()
-        btn_save    = QtWidgets.QPushButton("Сохранить")
+        btn_save = QtWidgets.QPushButton("Сохранить")
         btn_restore = QtWidgets.QPushButton("Восстановить")
-        btn_run     = QtWidgets.QPushButton("Сделать копию")
-        btn_exit    = QtWidgets.QPushButton("Выход")
+        btn_run = QtWidgets.QPushButton("Сделать копию")
+        btn_exit = QtWidgets.QPushButton("Выход")
         btn_save.clicked.connect(self._save)
         btn_restore.clicked.connect(self._restore)
         btn_run.clicked.connect(self._run)
@@ -133,7 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for r in self.cfg.sources:
             self.lst_src.addItem(r.source)
         if self.cfg.sources:
-            self.lst_src.setCurrentRow(0)      # сразу показываем первый источник
+            self.lst_src.setCurrentRow(0)  # сразу показываем первый источник
         self._refresh_excl()
         self.cb_day.setChecked(False)
         self.cb_week.setChecked(False)
@@ -216,8 +198,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_label.setText("Копирование…")
         self.setEnabled(False)
         q = queue.Queue()
+
         def prog(i, tot): q.put(("prog", i, tot))
+
         def logm(m):     q.put(("log", m))
+
         threading.Thread(target=run_backup, args=(self.cfg, prog, logm), daemon=True).start()
         QtCore.QTimer.singleShot(100, lambda: self._process_queue(q))
 

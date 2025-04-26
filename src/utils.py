@@ -31,3 +31,22 @@ def same_file(src: Path, dst: Path, use_hash: bool = False) -> bool:
 def copy2(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst, follow_symlinks=False)
+
+
+def human_readable(size: int) -> str:
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+
+def dir_size(path: Path) -> int:
+    total = 0
+    for p in path.rglob('*'):
+        try:
+            if p.is_file():
+                total += p.stat().st_size
+        except Exception:
+            pass
+    return total
