@@ -7,8 +7,14 @@ from PySide6.QtWidgets import QSizePolicy
 
 from src.config import Settings, PathRule
 from src.copier import run_backup
-from src.scheduler import _exists, delete, schedule_daily as daily, \
-    schedule_weekly as weekly, schedule_onstart as onstart, schedule_onidle as onidle
+from src.scheduler import (
+    exists, delete,
+    schedule_daily as daily,
+    schedule_weekly as weekly,
+    schedule_onstart as onstart,
+    schedule_onidle as onidle
+)
+
 from src.utils import dir_size, human_readable
 from .ExcludeDialog import ExcludeDialog
 
@@ -68,7 +74,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_day = QtWidgets.QCheckBox("Ежедневно 03:00")
         self.cb_week = QtWidgets.QCheckBox("Еженедельно (Пн 03:00)")
         self.cb_start = QtWidgets.QCheckBox("При включении системы")
-        self.cb_idle = QtWidgets.QCheckBox("При пробуждении/простое")
+        self.cb_idle = QtWidgets.QCheckBox("При простое")
         for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
             schedule_layout.addWidget(cb)
 
@@ -123,14 +129,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _load_fields(self):
         self.le_target.setText(self.cfg.target_dir)
+
+        # Источники и исключения
         self.lst_src.clear()
         for rule in self.cfg.sources:
             self.lst_src.addItem(rule.source)
         self.lst_src.setCurrentRow(0 if self.cfg.sources else -1)
         self._refresh_excludes()
-        for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
-            cb.setChecked(False)
+
+        # Чекбоксы на основе реальных задач в планировщике
+        # functions imported: exists("daily"/"weekly"/"onstart"/"onidle")
+        self.cb_day.setChecked   ( exists("daily") )
+        self.cb_week.setChecked  ( exists("weekly") )
+        self.cb_start.setChecked ( exists("onstart") )
+        self.cb_idle.setChecked  ( exists("onidle") )
+
+        # Обновляем оценку размера
         self._update_backup_size()
+
 
     def _pick_target(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, "Куда копировать")
@@ -181,12 +197,41 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.cfg.target_dir = target
         self.cfg.save()
-        if _exists():
-            delete()
-        if self.cb_day.isChecked(): daily()
-        if self.cb_week.isChecked(): weekly()
-        if self.cb_start.isChecked(): onstart()
-        if self.cb_idle.isChecked(): onidle()
+
+        # --- Синхронизация задач ---
+        # Ежедневно
+        if self.cb_day.isChecked():
+            if not exists("daily"):
+                daily()
+        else:
+            if exists("daily"):
+                delete("daily")
+
+        # Еженедельно (Пн)
+        if self.cb_week.isChecked():
+            if not exists("weekly"):
+                weekly()
+        else:
+            if exists("weekly"):
+                delete("weekly")
+
+        # При включении системы
+        if self.cb_start.isChecked():
+            if not exists("onstart"):
+                onstart()
+        else:
+            if exists("onstart"):
+                delete("onstart")
+
+        # При пробуждении/простое
+        if self.cb_idle.isChecked():
+            if not exists("onidle"):
+                onidle()
+        else:
+            if exists("onidle"):
+                delete("onidle")
+        # ----------------------------
+
         self.status_label.setText("Сохранено")
         self._update_backup_size()
 
