@@ -1,10 +1,3 @@
-try:
-    from elevate import elevate
-
-    elevate()
-except ImportError:
-    pass
-
 import argparse
 
 from src.config import Settings
@@ -27,6 +20,13 @@ def main() -> None:
             raise SystemExit("No saved configuration, run GUI first.")
         run_backup(cfg)
     else:
+        try:
+            from elevate import elevate
+
+            elevate()
+        except ImportError:
+            pass
+
         open_gui()
 
 
