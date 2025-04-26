@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
+from PySide6.QtWidgets import QSizePolicy
 
 from src.config import Settings, PathRule
 from src.copier import run_backup
@@ -41,7 +42,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lst_src.currentRowChanged.connect(self._refresh_excl)
         src_box.addWidget(self.lst_src)
         btns = QtWidgets.QHBoxLayout()
-        for txt, cmd in [("+", self._add_src), ("–", self._del_src), ("Clr", self._clr_src)]:
+        for txt, cmd in [("+ Add source", self._add_src), ("– Delete", self._del_src), ("Clear", self._clr_src)]:
             b = QtWidgets.QPushButton(txt)
             b.clicked.connect(cmd)
             btns.addWidget(b)
@@ -90,6 +91,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progressBar = QtWidgets.QProgressBar()
         self.txt_log = QtWidgets.QTextEdit(readOnly=True)
 
+        self.lst_src.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.lst_excl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.txt_log.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         # --- Основная сетка: две колонки ---
         grid = QtWidgets.QGridLayout(cw)
         # Row 0: цель копии на всю ширину
@@ -107,9 +111,9 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(self.progressBar, 6, 0)
         grid.addWidget(self.txt_log, 7, 0)
 
-        # Настраиваем растяжки, чтобы первая колонка и последняя строка в первом столбце расширялись,
-        # а исключения (col 1) были ещё выше:
-        grid.setRowStretch(8, 1)
+        grid.setRowStretch(1, 1)  # источники/исключения
+        grid.setRowStretch(7, 1)  # лог
+
         grid.setColumnStretch(0, 5)
         grid.setColumnStretch(1, 4)
 
