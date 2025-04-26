@@ -7,13 +7,7 @@ from PySide6.QtWidgets import QSizePolicy
 
 from src.config import Settings, PathRule
 from src.copier import run_backup
-from src.scheduler import (
-    exists, delete,
-    schedule_daily as daily,
-    schedule_weekly as weekly,
-    schedule_onstart as onstart,
-    schedule_onidle as onidle
-)
+from src.scheduler import exists, delete, schedule
 
 from src.utils import dir_size, human_readable
 from .ExcludeDialog import ExcludeDialog
@@ -71,12 +65,22 @@ class MainWindow(QtWidgets.QMainWindow):
         # Schedule options
         schedule_group = QtWidgets.QGroupBox("Периодичность")
         schedule_layout = QtWidgets.QVBoxLayout(schedule_group)
-        self.cb_day = QtWidgets.QCheckBox("Ежедневно 03:00")
-        self.cb_week = QtWidgets.QCheckBox("Еженедельно (Пн 03:00)")
-        self.cb_start = QtWidgets.QCheckBox("При включении системы")
-        self.cb_idle = QtWidgets.QCheckBox("При простое")
-        for cb in (self.cb_day, self.cb_week, self.cb_start, self.cb_idle):
+        self.cb_day    = QtWidgets.QCheckBox("Ежедневно 03:00")
+        self.cb_week   = QtWidgets.QCheckBox("Еженедельно (Пн 03:00)")
+        self.cb_logon  = QtWidgets.QCheckBox("При входе в систему")
+        self.cb_idle   = QtWidgets.QCheckBox("При простое (20 мин)")
+        self.cb_unlock = QtWidgets.QCheckBox("При разблокировке")
+        for cb in (self.cb_day, self.cb_week, self.cb_logon, self.cb_idle, self.cb_unlock):
             schedule_layout.addWidget(cb)
+
+        self.schedule_controls = {
+            "daily":    self.cb_day,
+            "weekly":   self.cb_week,
+            "onlogon":  self.cb_logon,
+            "onidle":   self.cb_idle,
+            "onunlock": self.cb_unlock,
+        }
+
 
         # Action buttons
         action_layout = QtWidgets.QHBoxLayout()
@@ -137,12 +141,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lst_src.setCurrentRow(0 if self.cfg.sources else -1)
         self._refresh_excludes()
 
-        # Чекбоксы на основе реальных задач в планировщике
-        # functions imported: exists("daily"/"weekly"/"onstart"/"onidle")
-        self.cb_day.setChecked   ( exists("daily") )
-        self.cb_week.setChecked  ( exists("weekly") )
-        self.cb_start.setChecked ( exists("onstart") )
-        self.cb_idle.setChecked  ( exists("onidle") )
+        for key, cb in self.schedule_controls.items():
+            cb.setChecked(exists(key))
 
         # Обновляем оценку размера
         self._update_backup_size()
@@ -198,39 +198,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg.target_dir = target
         self.cfg.save()
 
-        # --- Синхронизация задач ---
-        # Ежедневно
-        if self.cb_day.isChecked():
-            if not exists("daily"):
-                daily()
-        else:
-            if exists("daily"):
-                delete("daily")
-
-        # Еженедельно (Пн)
-        if self.cb_week.isChecked():
-            if not exists("weekly"):
-                weekly()
-        else:
-            if exists("weekly"):
-                delete("weekly")
-
-        # При включении системы
-        if self.cb_start.isChecked():
-            if not exists("onstart"):
-                onstart()
-        else:
-            if exists("onstart"):
-                delete("onstart")
-
-        # При пробуждении/простое
-        if self.cb_idle.isChecked():
-            if not exists("onidle"):
-                onidle()
-        else:
-            if exists("onidle"):
-                delete("onidle")
-        # ----------------------------
+        for key, cb in self.schedule_controls.items():
+            if cb.isChecked():
+                if not exists(key):
+                    schedule(key)
+            else:
+                if exists(key):
+                    delete(key)
 
         self.status_label.setText("Сохранено")
         self._update_backup_size()
