@@ -3,6 +3,7 @@ import argparse
 from src.config import Settings
 from src.copier import run_backup
 from src.gui import open_gui
+from src.utils import _hide_console
 
 
 def main() -> None:
@@ -26,7 +27,7 @@ def main() -> None:
             elevate()
         except ImportError:
             pass
-
+        _hide_console()
         open_gui()
 
 

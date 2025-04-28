@@ -1,3 +1,4 @@
+import ctypes
 import hashlib
 import logging
 import shutil
@@ -50,3 +51,9 @@ def dir_size(path: Path) -> int:
         except Exception:
             pass
     return total
+
+
+def _hide_console():
+    """Скрыть окно консоли (если есть)."""
+    whnd = ctypes.windll.kernel32.GetConsoleWindow()
+    ctypes.windll.user32.ShowWindow(whnd, 0)
