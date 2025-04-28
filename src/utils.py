@@ -3,6 +3,7 @@ import hashlib
 import io
 import os
 import shutil
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -65,45 +66,55 @@ def iter_files(rule: PathRule) -> Iterable[Path]:
     Generate all files under rule.source, excluding any paths in rule.excludes.
     """
     root = Path(rule.source).expanduser().resolve()
-    excludes = {root / Path(e) for e in rule.excludes}
+    if not root.exists():
+        return
 
-    for cur, dirs, files in os.walk(root, topdown=True):
-        rel_cur = Path(cur).relative_to(root)
-        dirs[:] = [
-            d for d in dirs
-            if not any((rel_cur / d).is_relative_to(ex.relative_to(root)) for ex in excludes)
-        ]
-        for f in files:
-            rel_f = rel_cur / f
-            if any(rel_f.is_relative_to(ex.relative_to(root)) for ex in excludes):
-                continue
-            yield Path(cur) / f
+    excluded = [(root / Path(e)).resolve() for e in rule.excludes]
 
+    def _skip(p: Path) -> bool:
+        return any(p.is_relative_to(ex) for ex in excluded)
 
-def dir_size(path: Path) -> int:
-    """
-    Calculate total size of a file or directory, excluding inaccessible entries.
-    """
-    if not path.exists():
-        return 0
-    if path.is_file():
+    stack = [root]
+    while stack:
+        cur = stack.pop()
+        if _skip(cur):
+            continue
         try:
-            return path.stat().st_size
-        except OSError:
-            return 0
+            with os.scandir(cur) as it:
+                for entry in it:
+                    path = Path(entry.path)
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append(path)
+                    elif entry.is_file(follow_symlinks=False) and not _skip(path):
+                        yield path
+        except (PermissionError, FileNotFoundError):
+            pass
+
+
+@lru_cache(maxsize=None)
+def dir_size(path: str | Path) -> int:
+    """
+    Однократный (lru-кэш) расчёт размера файла/каталога.
+    """
+    p = Path(path).expanduser().resolve()
+    try:
+        if p.is_file():
+            return p.stat().st_size
+    except OSError:
+        return 0
 
     total = 0
-    stack = [path]
+    stack = [p]
     while stack:
         cur = stack.pop()
         try:
             with os.scandir(cur) as it:
-                for entry in it:
-                    if entry.is_dir(follow_symlinks=False):
-                        stack.append(Path(entry.path))
-                    elif entry.is_file(follow_symlinks=False):
+                for e in it:
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(Path(e.path))
+                    elif e.is_file(follow_symlinks=False):
                         try:
-                            total += entry.stat().st_size
+                            total += e.stat().st_size
                         except OSError:
                             pass
         except (PermissionError, FileNotFoundError):

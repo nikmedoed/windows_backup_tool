@@ -1,5 +1,4 @@
 import threading
-from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtWidgets import QSizePolicy
@@ -22,7 +21,6 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle(_("Backup Tool Settings"))
         self.cfg = Settings.load() or Settings(target_dir="")
-        self._size_cache: dict[Path, int] = {}
         self._build_ui()
         self.progressChanged.connect(self._handle_progress)
         self.logAppended.connect(self.txt_log.append)
@@ -206,7 +204,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.size_label.setText(_("Calculating size…"))
         if hasattr(self, '_size_worker') and self._size_worker.isRunning():
             return
-        self._size_worker = SizeWorker(self.cfg.sources, self._size_cache)
+        self._size_worker = SizeWorker(self.cfg.sources)
         self._size_worker.sizeCalculated.connect(self._on_size_calculated)
         self._size_worker.start()
 

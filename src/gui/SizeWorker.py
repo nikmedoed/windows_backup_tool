@@ -7,12 +7,11 @@ from src.utils import dir_size
 
 
 class SizeWorker(QtCore.QThread):
-    sizeCalculated = QtCore.Signal(object)
+    sizeCalculated = QtCore.Signal(int)
 
-    def __init__(self, sources: list[PathRule], cache: dict[Path, int]):
+    def __init__(self, sources: list[PathRule]):
         super().__init__()
         self.sources = sources
-        self.cache = cache
 
     def run(self):
         total = 0
@@ -20,14 +19,10 @@ class SizeWorker(QtCore.QThread):
             root = Path(rule.source).expanduser().resolve()
             if not root.exists():
                 continue
-            if root not in self.cache:
-                self.cache[root] = dir_size(root)
-            root_size = self.cache[root]
+            root_sz = dir_size(root)
             for ex in rule.excludes:
                 ex_path = root / ex
                 if ex_path.exists():
-                    if ex_path not in self.cache:
-                        self.cache[ex_path] = dir_size(ex_path)
-                    root_size -= self.cache[ex_path]
-            total += max(root_size, 0)
+                    root_sz -= dir_size(ex_path)
+            total += max(root_sz, 0)
         self.sizeCalculated.emit(total)

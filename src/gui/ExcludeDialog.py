@@ -17,7 +17,6 @@ class ExcludeDialog(QtWidgets.QDialog):
     def __init__(self, cfg: Settings, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self._cfg = cfg
-        self._size_cache: Dict[Path, int] = {}
 
         self.setWindowTitle(_("Exclusions"))
         self.resize(0, 640)
@@ -188,7 +187,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         total_count = 0
         root = self.tree.invisibleRootItem()
         for i in range(root.childCount()):
-            sz, cnt = ExcludeDialog._accumulate_static(root.child(i), self._size_cache)
+            sz, cnt = ExcludeDialog._accumulate_static(root.child(i))
             total_size += sz
             total_count += cnt
         text = _("Selected: {count} • Size: {size}").format(
@@ -200,44 +199,21 @@ class ExcludeDialog(QtWidgets.QDialog):
         )
 
     @staticmethod
-    def _accumulate_static(itm, size_cache):
+    def _accumulate_static(itm):
+        from src.utils import dir_size
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return 0, 0
         path = itm.data(0, ExcludeDialog.PATH_ROLE)
         if st == QtCore.Qt.Checked:
-            size = ExcludeDialog._dir_size_cached(path, size_cache) if path.is_dir() else itm.data(0,
-                                                                                                   ExcludeDialog.SIZE_ROLE)
+            size = dir_size(path) if path.is_dir() else itm.data(0, ExcludeDialog.SIZE_ROLE)
             return size, 1
-        total_size, total_count = 0, 0
+        total_sz = total_cnt = 0
         for i in range(itm.childCount()):
-            sz, cnt = ExcludeDialog._accumulate_static(itm.child(i), size_cache)
-            total_size += sz
-            total_count += cnt
-        return total_size, total_count
-
-    @staticmethod
-    def _dir_size_cached(p, size_cache):
-        if p in size_cache:
-            return size_cache[p]
-        total = 0
-        stack = [p]
-        while stack:
-            cur = stack.pop()
-            try:
-                with os.scandir(cur) as it:
-                    for entry in it:
-                        if entry.is_dir(follow_symlinks=False):
-                            stack.append(Path(entry.path))
-                        elif entry.is_file(follow_symlinks=False):
-                            try:
-                                total += entry.stat().st_size
-                            except OSError:
-                                pass
-            except Exception:
-                pass
-        size_cache[p] = total
-        return total
+            sz, cnt = ExcludeDialog._accumulate_static(itm.child(i))
+            total_sz += sz
+            total_cnt += cnt
+        return total_sz, total_cnt
 
     def _expand_all(self):
         self.tree.expandAll()
