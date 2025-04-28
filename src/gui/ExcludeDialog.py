@@ -11,28 +11,31 @@ from src.utils import human_readable
 
 
 class ExcludeDialog(QtWidgets.QDialog):
-    SIZE_ROLE = QtCore.Qt.UserRole + 1
-    PATH_ROLE = QtCore.Qt.UserRole + 2
-    LOADED_ROLE = QtCore.Qt.UserRole + 3
+    PATH_ROLE = QtCore.Qt.UserRole + 1
+    LOADED_ROLE = QtCore.Qt.UserRole + 2
+    SIZE_ROLE = QtCore.Qt.UserRole + 3
 
     def __init__(self, cfg: Settings, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
+        self._cfg = cfg
+        self._size_cache: Dict[Path, int] = {}
+        self._legend_lock = threading.Lock()
+        self._updating_legend = False
+
         self.setWindowTitle(_("Exclusions"))
         self.resize(0, 640)
-        self._cfg = cfg
-        self._size_cache: dict[Path, int] = {}
-        self._legend_lock = threading.Lock()
 
         self._build_ui()
+        self._populate_roots()
+        self._restore_checks()
+
+        self._update_legend_async()
+
         btn_layout = self.layout().itemAt(0).layout()
         btn_width = btn_layout.sizeHint().width()
         margins = self.layout().contentsMargins()
         total_width = btn_width + margins.left() + margins.right()
         self.resize(total_width, self.height())
-
-        self._populate_roots()
-        self._restore_checks()
-        self._update_legend_async()
 
     def _build_ui(self):
         vbox = QtWidgets.QVBoxLayout(self)
@@ -72,7 +75,8 @@ class ExcludeDialog(QtWidgets.QDialog):
             self.tree.addTopLevelItem(itm)
 
     def _make_item(self, name: str, path: Path, is_dir: bool) -> QtWidgets.QTreeWidgetItem:
-        itm = QtWidgets.QTreeWidgetItem([name, "" if is_dir else human_readable(path.stat().st_size)])
+        size_text = "" if is_dir else human_readable(path.stat().st_size)
+        itm = QtWidgets.QTreeWidgetItem([name, size_text])
         itm.setFlags(itm.flags() | QtCore.Qt.ItemIsUserCheckable)
         itm.setCheckState(0, QtCore.Qt.Unchecked)
         itm.setData(0, self.PATH_ROLE, path)
@@ -95,7 +99,11 @@ class ExcludeDialog(QtWidgets.QDialog):
             parent.takeChildren()
             with os.scandir(path) as it:
                 for entry in it:
-                    child = self._make_item(entry.name, Path(entry.path), entry.is_dir(follow_symlinks=False))
+                    child = self._make_item(
+                        entry.name,
+                        Path(entry.path),
+                        entry.is_dir(follow_symlinks=False)
+                    )
                     parent.addChild(child)
         except PermissionError:
             pass
@@ -135,15 +143,17 @@ class ExcludeDialog(QtWidgets.QDialog):
         if pr is None:
             return
         states = {pr.child(i).checkState(0) for i in range(pr.childCount())}
-        pr.setCheckState(0,
-                         QtCore.Qt.Checked if states == {QtCore.Qt.Checked} else
-                         QtCore.Qt.Unchecked if states == {QtCore.Qt.Unchecked} else
-                         QtCore.Qt.PartiallyChecked)
+        pr.setCheckState(
+            0,
+            QtCore.Qt.Checked if states == {QtCore.Qt.Checked} else
+            QtCore.Qt.Unchecked if states == {QtCore.Qt.Unchecked} else
+            QtCore.Qt.PartiallyChecked
+        )
         self._bubble_up(pr)
 
     def _restore_checks(self):
-        for rule_idx, rule in enumerate(self._cfg.sources):
-            root_itm = self.tree.topLevelItem(rule_idx)
+        for idx, rule in enumerate(self._cfg.sources):
+            root_itm = self.tree.topLevelItem(idx)
             root_path = Path(rule.source).expanduser().resolve()
             for ex in rule.excludes:
                 abs_p = root_path / ex
@@ -163,48 +173,77 @@ class ExcludeDialog(QtWidgets.QDialog):
         return False
 
     def _update_legend_async(self):
+        if self._updating_legend:
+            return
+        self._updating_legend = True
         threading.Thread(target=self._update_legend, daemon=True).start()
 
     def _update_legend(self):
         with self._legend_lock:
-            total, cnt = 0, 0
+            total_size = 0
+            total_count = 0
             root = self.tree.invisibleRootItem()
             for i in range(root.childCount()):
-                t, c = self._accumulate(root.child(i))
-                total += t
-                cnt += c
-            txt = _("Selected: {count} • Size: {size}").format(count=cnt, size=human_readable(total))
-            QtCore.QMetaObject.invokeMethod(self.lbl_legend, "setText",
-                                            QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(str, txt))
+                size, count = ExcludeDialog._accumulate_static(root.child(i),
+                                                               self._size_cache)
+                total_size += size
+                total_count += count
+            text = _("Selected: {count} • Size: {size}").format(
+                count=total_count,
+                size=human_readable(total_size)
+            )
+            QtCore.QMetaObject.invokeMethod(
+                self.lbl_legend, "setText",
+                QtCore.Qt.QueuedConnection,
+                QtCore.Q_ARG(str, text)
+            )
+        self._updating_legend = False
 
-    def _accumulate(self, itm: QtWidgets.QTreeWidgetItem):
+    @staticmethod
+    def _accumulate_static(itm: QtWidgets.QTreeWidgetItem,
+                           size_cache: Dict[Path, int]) -> (int, int):
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return 0, 0
-        path: Path = itm.data(0, self.PATH_ROLE)
+        path: Path = itm.data(0, ExcludeDialog.PATH_ROLE)
         if st == QtCore.Qt.Checked:
-            size = self._dir_size_cached(path) if path.is_dir() else itm.data(0, self.SIZE_ROLE)
+            if path.is_dir():
+                size = ExcludeDialog._dir_size_cached(path, size_cache)
+            else:
+                size = itm.data(0, ExcludeDialog.SIZE_ROLE)
             return size, 1
-        total, cnt = 0, 0
+        total_size, total_count = 0, 0
         for i in range(itm.childCount()):
-            t, c = self._accumulate(itm.child(i))
-            total += t
-            cnt += c
-        return total, cnt
+            sz, cnt = ExcludeDialog._accumulate_static(
+                itm.child(i), size_cache
+            )
+            total_size += sz
+            total_count += cnt
+        return total_size, total_count
 
-    def _dir_size_cached(self, p: Path) -> int:
-        if p in self._size_cache:
-            return self._size_cache[p]
-        s = 0
-        for f in p.rglob('*'):
+    @staticmethod
+    def _dir_size_cached(p: Path,
+                         size_cache: Dict[Path, int]) -> int:
+        if p in size_cache:
+            return size_cache[p]
+        total = 0
+        stack = [p]
+        while stack:
+            cur = stack.pop()
             try:
-                if f.is_file():
-                    s += f.stat().st_size
-            except OSError:
+                with os.scandir(cur) as it:
+                    for entry in it:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            try:
+                                total += entry.stat().st_size
+                            except OSError:
+                                pass
+            except Exception:
                 pass
-        self._size_cache[p] = s
-        return s
+        size_cache[p] = total
+        return total
 
     def _expand_all(self):
         self.tree.expandAll()
@@ -218,7 +257,9 @@ class ExcludeDialog(QtWidgets.QDialog):
     def _collapse_cur(self):
         self._set_expanded_recursive(self.tree.currentItem(), False)
 
-    def _set_expanded_recursive(self, itm: QtWidgets.QTreeWidgetItem | None, expand: bool):
+    def _set_expanded_recursive(self,
+                                itm: QtWidgets.QTreeWidgetItem | None,
+                                expand: bool):
         if itm is None:
             return
         self._load_children(itm)
@@ -235,16 +276,16 @@ class ExcludeDialog(QtWidgets.QDialog):
         res: Dict[str, List[str]] = {}
         for idx, rule in enumerate(self._cfg.sources):
             root_itm = self.tree.topLevelItem(idx)
-            sel: list[Path] = []
+            sel: List[Path] = []
             self._collect(root_itm, sel)
-            minimal: list[Path] = []
+            minimal: List[Path] = []
             for p in sorted(sel):
                 if not any(p.is_relative_to(m) for m in minimal):
                     minimal.append(p)
             res[rule.source] = [str(p.relative_to(rule.source)) for p in minimal]
         return res
 
-    def _collect(self, itm: QtWidgets.QTreeWidgetItem, out: list[Path]):
+    def _collect(self, itm: QtWidgets.QTreeWidgetItem, out: List[Path]):
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return
