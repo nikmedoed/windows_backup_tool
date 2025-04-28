@@ -96,7 +96,7 @@ Translations are managed with Babel. To update:
 Generate a standalone `.exe`:
 
 ```bash
-pyinstaller --onefile --uac-admin --name BackupTool main.py
+pyinstaller --onefile --uac-admin --name BackupTool main.py  --icon icon/icon.ico
 ```
 
 Find the result in `dist/BackupTool.exe`.
