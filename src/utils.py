@@ -3,6 +3,7 @@ import hashlib
 import io
 import os
 import shutil
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
@@ -128,3 +129,15 @@ def _hide_console() -> None:
     """
     whnd = ctypes.windll.kernel32.GetConsoleWindow()
     ctypes.windll.user32.ShowWindow(whnd, 0)
+
+
+def is_admin() -> bool:
+    if sys.platform != "win32":
+        import os
+        return os.geteuid() == 0
+
+    import ctypes
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except OSError:
+        return False

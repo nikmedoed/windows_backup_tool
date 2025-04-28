@@ -1,6 +1,7 @@
 import argparse
 
 from src.i18n import _
+from src.utils import is_admin
 
 
 def main() -> None:
@@ -9,6 +10,11 @@ def main() -> None:
         "--backup",
         action="store_true",
         help=_("Run backup according to the saved configuration (called from the scheduler)")
+    )
+    p.add_argument(
+        "--dev",
+        action="store_true",
+        help=_("Run in development mode (if elevating, show console window)")
     )
 
     args = p.parse_args()
@@ -22,9 +28,10 @@ def main() -> None:
         run_backup(cfg)
     else:
         try:
-            from elevate import elevate
+            if not is_admin():
+                from elevate import elevate
 
-            elevate()
+                elevate(show_console=args.dev)
         except ImportError:
             pass
         from src.utils import _hide_console
