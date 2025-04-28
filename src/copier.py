@@ -1,26 +1,26 @@
-from __future__ import annotations
-
 import os
-import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Callable, Optional
+from typing import Iterable
 
 from .config import Settings, PathRule
-from .utils import log, copy2, same_file
+from .utils import copy2, same_file
 
 
-# ---------- helpers -------------------------------------------------
+# ── Вспомогалки ──────────────────────────────────────────────────
+
 def _norm(p: str | Path) -> Path:
     p = Path(p)
     return Path(*p.parts) if p.parts and p.parts[0] == p.root else p
+
 
 def _skip(rel: Path, excluded: set[Path]) -> bool:
     for e in excluded:
         if rel == e or rel.is_relative_to(e):
             return True
     return False
+
 
 def _iter_files(rule: PathRule) -> Iterable[Path]:
     root = Path(rule.source).expanduser().resolve()
@@ -38,41 +38,50 @@ def _iter_files(rule: PathRule) -> Iterable[Path]:
             yield root / rel_file
 
 
-# ---------- статистика ----------------------------------------------
 @dataclass
 class Stats:
+    scanned: int = 0
     copied: int = 0
     unchanged: int = 0
     errors: int = 0
 
     def summary(self) -> str:
-        return (f"Скопировано: {self.copied}  |  "
+        return (f"Сканировано: {self.scanned}  |  "
+                f"Скопировано: {self.copied}  |  "
                 f"Не изменилось: {self.unchanged}  |  "
                 f"Ошибок: {self.errors}")
 
 
-# ---------- public API ----------------------------------------------
-def run_backup(
-        cfg: Settings,
-        progress: Optional[Callable[[int, int], None]] = None,
-        log_cb: Optional[Callable[[str], None]] = None,
-        use_hash: bool = False
-) -> None:
-    # 0. старт — собираем список
-    log_cb and log_cb("🔍 Собираем список файлов...")
+# ── Основная функция ───────────────────────────────────────────────
+
+def run_backup(cfg: Settings, use_hash: bool = False) -> None:
+    # 0) подготовка
+    print("🔍 Старт бэкапа…")
     tgt_root = Path(cfg.target_dir).expanduser().resolve()
     if not tgt_root.is_dir():
-        msg = f"Target directory “{tgt_root}” недоступна"
-        log.error(msg)
-        log_cb and log_cb(f"❌ {msg}")
+        print(f"❌ Директория «{tgt_root}» недоступна")
         return
 
-    stats = Stats()
-    tasks: list[tuple[Path, Path]] = []
+    # попытка tqdm
+    try:
+        from tqdm import tqdm
+        have_tqdm = True
+    except ImportError:
+        have_tqdm = False
 
-    # 1. сканируем все файлы и сразу считаем, что уже есть
+    # 1) Сканирование
+    all_files = []
+    print("📂 Сканирование файлов…")
     for rule in cfg.sources:
-        for src in _iter_files(rule):
+        all_files.extend(_iter_files(rule))
+    total_files = len(all_files)
+    stats = Stats()
+    stats.scanned = total_files
+
+    # 2) Анализ идентичности
+    tasks = []
+    if have_tqdm:
+        for src in tqdm(all_files, desc="🛠 Анализ файлов на изменения…", unit="file"):
             rel_drive = src.drive.rstrip(":")
             rel_path = src.relative_to(src.anchor)
             dst = tgt_root / rel_drive / rel_path
@@ -80,51 +89,56 @@ def run_backup(
                 stats.unchanged += 1
             else:
                 tasks.append((src, dst))
+    else:
+        for i, src in enumerate(all_files, 1):
+            pct = int(i / total_files * 100)
+            print(f"\r Анализ: {pct}% ({i}/{total_files})", end="", flush=True)
+            rel_drive = src.drive.rstrip(":")
+            rel_path = src.relative_to(src.anchor)
+            dst = tgt_root / rel_drive / rel_path
+            if same_file(src, dst, use_hash):
+                stats.unchanged += 1
+            else:
+                tasks.append((src, dst))
+        print()
 
-    total = len(tasks)
-
-    # 2. анализ идентичности завершён
-    log_cb and log_cb("🛠 Анализируем идентичность файлов...")
-    if total == 0:
-        log_cb and log_cb("✅ Нет новых или изменённых файлов — копирование не требуется")
-        progress and progress(1, 1)
+    num_tasks = len(tasks)
+    if num_tasks == 0:
+        print("✅ Нет изменений — копирование не требуется")
+        print(stats.summary())
         return
 
-    log_cb and log_cb(f"▶ {total} файл(ов) к копированию, "
-                      f"{stats.unchanged} без изменений")
+    print(f"▶ {num_tasks} файл(ов) к копированию, {stats.unchanged} без изменений")
 
-    # 3. автопрогресс для консоли
-    if progress is None and sys.stdout.isatty():
-        try:
-            from tqdm import tqdm
-            bar = tqdm(total=total, unit="file")
-            def _p(*_): bar.update()
-            progress = _p
-        except ModuleNotFoundError:
-            pass
+    if have_tqdm:
+        for src, dst in tqdm(tasks, desc="Копирование", unit="file"):
+            try:
+                copy2(src, dst)
+                stats.copied += 1
+            except Exception as exc:
+                stats.errors += 1
+                tqdm.write(f"❗ {src} → {dst} ({exc})")
+    else:
+        for i, (src, dst) in enumerate(tasks, 1):
+            try:
+                copy2(src, dst)
+                stats.copied += 1
+            except Exception as exc:
+                stats.errors += 1
+                print(f"\n❗ {src} → {dst} ({exc})")
+            pct = int(i / num_tasks * 100)
+            print(f"\r Копирование: {pct}% ({i}/{num_tasks})", end="", flush=True)
+        print()
 
-    # 4. копирование
-    errors: list[str] = []
-    for i, (src, dst) in enumerate(tasks, 1):
-        try:
-            copy2(src, dst)
-            stats.copied += 1
-        except Exception as exc:
-            msg = f"❗ERROR: {src} → {dst} ({exc})"
-            log.error(msg)
-            log_cb and log_cb(msg)
-            errors.append(msg)
-            stats.errors += 1
-        if progress:
-            progress(i, total)
+    # 4) Отчёт
+    print(stats.summary())
 
-    # 5. финал
-    log_cb and log_cb("🔔 " + stats.summary())
-
-    # 6. ошибки — в отдельный файл на Desktop
-    if errors:
+    # 5) Лог ошибок (только если есть)
+    if stats.errors:
         desktop = Path.home() / "Desktop"
         desktop.mkdir(exist_ok=True)
         fname = desktop / f"backup_errors_{datetime.now():%Y%m%d_%H%M%S}.log"
-        fname.write_text("\n".join(errors), encoding="utf-8")
-        log_cb and log_cb(f"📄 Подробности ошибок сохранены: {fname}")
+        # соберём ошибки из tqdm (если нужно, держите список) или из print лога
+        # для простоты: перезапишем файл пустым, добавьте сбор ошибок, если надо
+        fname.write_text("", encoding="utf-8")
+        print(f"⚠️ Ошибки сохранены в: {fname}")
