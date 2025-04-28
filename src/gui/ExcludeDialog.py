@@ -157,22 +157,28 @@ class ExcludeDialog(QtWidgets.QDialog):
         for idx, rule in enumerate(self._cfg.sources):
             root_itm = self.tree.topLevelItem(idx)
             root_path = Path(rule.source).expanduser().resolve()
-            for ex in rule.excludes:
-                abs_p = root_path / ex
-                self._mark_path_checked(root_itm, abs_p)
 
-    def _mark_path_checked(self, parent, tgt):
-        path = parent.data(0, self.PATH_ROLE)
-        if path == tgt:
-            parent.setCheckState(0, QtCore.Qt.Checked)
-            return True
-        if not tgt.is_relative_to(path):
-            return False
-        self._load_children(parent)
-        for i in range(parent.childCount()):
-            if self._mark_path_checked(parent.child(i), tgt):
-                return True
-        return False
+            for ex in rule.excludes:
+                abs_path = root_path / ex
+                parts = abs_path.relative_to(root_path).parts
+                cur_item = root_itm
+                cur_path = root_path
+
+                for p in parts:
+                    self._load_children(cur_item)
+                    cur_path = cur_path / p
+
+                    for i in range(cur_item.childCount()):
+                        ch = cur_item.child(i)
+                        if ch.data(0, self.PATH_ROLE) == cur_path:
+                            cur_item = ch
+                            break
+                    else:
+                        cur_item = None
+                        break
+
+                if cur_item is not None:
+                    cur_item.setCheckState(0, QtCore.Qt.Checked)
 
     def _update_legend_async(self):
         self._legend_timer.start()
