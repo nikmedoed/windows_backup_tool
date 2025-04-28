@@ -1,15 +1,7 @@
 import ctypes
 import hashlib
-import logging
 import shutil
 from pathlib import Path
-
-LOG_PATH = Path("backup_app.log")
-logging.basicConfig(
-    filename=LOG_PATH, level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s", encoding="utf-8"
-)
-log = logging.getLogger("backup_tool")
 
 
 def sha1(path: Path, buf: int = 1 << 17) -> str:
@@ -54,6 +46,5 @@ def dir_size(path: Path) -> int:
 
 
 def _hide_console():
-    """Скрыть окно консоли (если есть)."""
     whnd = ctypes.windll.kernel32.GetConsoleWindow()
     ctypes.windll.user32.ShowWindow(whnd, 0)
