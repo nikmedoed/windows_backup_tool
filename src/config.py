@@ -34,5 +34,6 @@ class Settings:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=2, ensure_ascii=False)
 
+
 if __name__ == "__main__":
     print(Settings.load())

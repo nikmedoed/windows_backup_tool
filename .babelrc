@@ -1,0 +1,13 @@
+[
+  init
+]
+domain = app
+input_file = locales/app.pot
+output_dir = locales
+locale = ru
+charset = utf-8
+
+msgid-bugs-address = muromcevn@gmail.com
+project = Windows Backup Tool
+version = 0.1
+copyright-holder = Muromtsev Nikita

@@ -6,7 +6,7 @@ requires-python = ">=3.8"
 
 [project.dependencies]
 tqdm = "*"
-elevate = {optional = true}
+elevate = { optional = true }
 
 [project.optional-dependencies]
 gui = ["elevate"]

@@ -6,25 +6,24 @@ from typing import Dict, List
 from PySide6 import QtCore, QtWidgets
 
 from src.config import Settings
+from src.i18n import _
 from src.utils import human_readable
 
 
 class ExcludeDialog(QtWidgets.QDialog):
-    SIZE_ROLE = QtCore.Qt.UserRole + 1  # int: size in bytes (files only)
-    PATH_ROLE = QtCore.Qt.UserRole + 2  # Path: absolute
-    LOADED_ROLE = QtCore.Qt.UserRole + 3  # bool: children already added
+    SIZE_ROLE = QtCore.Qt.UserRole + 1
+    PATH_ROLE = QtCore.Qt.UserRole + 2
+    LOADED_ROLE = QtCore.Qt.UserRole + 3
 
     def __init__(self, cfg: Settings, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Исключения")
-        # Фиксируем высоту, ширину установим по кнопкам
+        self.setWindowTitle(_("Exclusions"))
         self.resize(0, 640)
         self._cfg = cfg
         self._size_cache: dict[Path, int] = {}
         self._legend_lock = threading.Lock()
 
         self._build_ui()
-        # Устанавливаем ширину окна по ширине ряда кнопок
         btn_layout = self.layout().itemAt(0).layout()
         btn_width = btn_layout.sizeHint().width()
         margins = self.layout().contentsMargins()
@@ -38,14 +37,14 @@ class ExcludeDialog(QtWidgets.QDialog):
     def _build_ui(self):
         vbox = QtWidgets.QVBoxLayout(self)
         btns = [
-            ("Разв. все", self._expand_all),
-            ("Св. все", self._collapse_all),
-            ("Разв. тек", self._expand_cur),
-            ("Св. тек", self._collapse_cur),
-            ("Выбрать все", lambda: self._set_state(QtCore.Qt.Checked)),
-            ("Снять все", lambda: self._set_state(QtCore.Qt.Unchecked)),
-            ("На весь экран", self._stretch_h),
-            ("Сохранить", self.accept),
+            (_("Expand All"), self._expand_all),
+            (_("Collapse All"), self._collapse_all),
+            (_("Expand Current"), self._expand_cur),
+            (_("Collapse Current"), self._collapse_cur),
+            (_("Select All"), lambda: self._set_state(QtCore.Qt.Checked)),
+            (_("Deselect All"), lambda: self._set_state(QtCore.Qt.Unchecked)),
+            (_("Full Height"), self._stretch_h),
+            (_("Save"), self.accept),
         ]
         hbtn = QtWidgets.QHBoxLayout()
         for txt, slot in btns:
@@ -56,7 +55,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         vbox.addLayout(hbtn)
 
         self.tree = QtWidgets.QTreeWidget()
-        self.tree.setHeaderLabels(["Файл / папка", "Размер"])
+        self.tree.setHeaderLabels([_("File / Folder"), _("Size")])
         self.tree.setColumnWidth(0, 520)
         self.tree.itemChanged.connect(self._on_item_changed)
         self.tree.itemExpanded.connect(self._on_expand)
@@ -174,8 +173,9 @@ class ExcludeDialog(QtWidgets.QDialog):
                 t, c = self._accumulate(root.child(i))
                 total += t
                 cnt += c
-            txt = f"Отмечено: {cnt} • Размер: {human_readable(total)}"
-            QtCore.QMetaObject.invokeMethod(self.lbl_legend, "setText", QtCore.Qt.QueuedConnection,
+            txt = _("Selected: {count} • Size: {size}").format(count=cnt, size=human_readable(total))
+            QtCore.QMetaObject.invokeMethod(self.lbl_legend, "setText",
+                                            QtCore.Qt.QueuedConnection,
                                             QtCore.Q_ARG(str, txt))
 
     def _accumulate(self, itm: QtWidgets.QTreeWidgetItem):
@@ -222,8 +222,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         if itm is None:
             return
         self._load_children(itm)
-        # было: self.tree.setItemExpanded(itm, expand)
-        itm.setExpanded(expand)  # ← правка
+        itm.setExpanded(expand)
         for i in range(itm.childCount()):
             self._set_expanded_recursive(itm.child(i), expand)
 
