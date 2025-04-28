@@ -1,5 +1,4 @@
 import os
-import threading
 from pathlib import Path
 from typing import Dict, List
 
@@ -19,16 +18,19 @@ class ExcludeDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self._cfg = cfg
         self._size_cache: Dict[Path, int] = {}
-        self._legend_lock = threading.Lock()
-        self._updating_legend = False
 
         self.setWindowTitle(_("Exclusions"))
         self.resize(0, 640)
 
         self._build_ui()
+
+        self._legend_timer = QtCore.QTimer(self)
+        self._legend_timer.setSingleShot(True)
+        self._legend_timer.setInterval(200)
+        self._legend_timer.timeout.connect(self._update_legend)
+
         self._populate_roots()
         self._restore_checks()
-
         self._update_legend_async()
 
         btn_layout = self.layout().itemAt(0).layout()
@@ -74,7 +76,7 @@ class ExcludeDialog(QtWidgets.QDialog):
             itm = self._make_item(root.name, root, is_dir=True)
             self.tree.addTopLevelItem(itm)
 
-    def _make_item(self, name: str, path: Path, is_dir: bool) -> QtWidgets.QTreeWidgetItem:
+    def _make_item(self, name: str, path: Path, is_dir: bool):
         size_text = "" if is_dir else human_readable(path.stat().st_size)
         itm = QtWidgets.QTreeWidgetItem([name, size_text])
         itm.setFlags(itm.flags() | QtCore.Qt.ItemIsUserCheckable)
@@ -87,10 +89,10 @@ class ExcludeDialog(QtWidgets.QDialog):
             itm.setData(0, self.SIZE_ROLE, path.stat().st_size)
         return itm
 
-    def _load_children(self, parent: QtWidgets.QTreeWidgetItem):
+    def _load_children(self, parent):
         if parent.data(0, self.LOADED_ROLE):
             return
-        path: Path = parent.data(0, self.PATH_ROLE)
+        path = parent.data(0, self.PATH_ROLE)
         if not path.is_dir():
             return
 
@@ -111,24 +113,24 @@ class ExcludeDialog(QtWidgets.QDialog):
             QtWidgets.QApplication.restoreOverrideCursor()
             parent.setData(0, self.LOADED_ROLE, True)
 
-    def _on_expand(self, item: QtWidgets.QTreeWidgetItem):
+    def _on_expand(self, item):
         self._load_children(item)
 
-    def _set_state(self, state: QtCore.Qt.CheckState):
+    def _set_state(self, state):
         self._set_state_rec(self.tree.invisibleRootItem(), state)
 
-    def _set_state_rec(self, itm: QtWidgets.QTreeWidgetItem, st: QtCore.Qt.CheckState):
+    def _set_state_rec(self, itm, st):
         itm.setCheckState(0, st)
         for i in range(itm.childCount()):
             self._set_state_rec(itm.child(i), st)
 
-    def _on_item_changed(self, item: QtWidgets.QTreeWidgetItem):
+    def _on_item_changed(self, item):
         with QtCore.QSignalBlocker(self.tree):
             self._propagate_down(item)
             self._bubble_up(item)
         self._update_legend_async()
 
-    def _propagate_down(self, itm: QtWidgets.QTreeWidgetItem):
+    def _propagate_down(self, itm):
         state = itm.checkState(0)
         if state == QtCore.Qt.PartiallyChecked:
             return
@@ -138,7 +140,7 @@ class ExcludeDialog(QtWidgets.QDialog):
             ch.setCheckState(0, state)
             self._propagate_down(ch)
 
-    def _bubble_up(self, itm: QtWidgets.QTreeWidgetItem):
+    def _bubble_up(self, itm):
         pr = itm.parent()
         if pr is None:
             return
@@ -159,8 +161,8 @@ class ExcludeDialog(QtWidgets.QDialog):
                 abs_p = root_path / ex
                 self._mark_path_checked(root_itm, abs_p)
 
-    def _mark_path_checked(self, parent: QtWidgets.QTreeWidgetItem, tgt: Path):
-        path: Path = parent.data(0, self.PATH_ROLE)
+    def _mark_path_checked(self, parent, tgt):
+        path = parent.data(0, self.PATH_ROLE)
         if path == tgt:
             parent.setCheckState(0, QtCore.Qt.Checked)
             return True
@@ -173,57 +175,43 @@ class ExcludeDialog(QtWidgets.QDialog):
         return False
 
     def _update_legend_async(self):
-        if self._updating_legend:
-            return
-        self._updating_legend = True
-        threading.Thread(target=self._update_legend, daemon=True).start()
+        self._legend_timer.start()
 
     def _update_legend(self):
-        with self._legend_lock:
-            total_size = 0
-            total_count = 0
-            root = self.tree.invisibleRootItem()
-            for i in range(root.childCount()):
-                size, count = ExcludeDialog._accumulate_static(root.child(i),
-                                                               self._size_cache)
-                total_size += size
-                total_count += count
-            text = _("Selected: {count} • Size: {size}").format(
-                count=total_count,
-                size=human_readable(total_size)
-            )
-            QtCore.QMetaObject.invokeMethod(
-                self.lbl_legend, "setText",
-                QtCore.Qt.QueuedConnection,
-                QtCore.Q_ARG(str, text)
-            )
-        self._updating_legend = False
+        total_size = 0
+        total_count = 0
+        root = self.tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            sz, cnt = ExcludeDialog._accumulate_static(root.child(i), self._size_cache)
+            total_size += sz
+            total_count += cnt
+        text = _("Selected: {count} • Size: {size}").format(
+            count=total_count, size=human_readable(total_size))
+        QtCore.QMetaObject.invokeMethod(
+            self.lbl_legend, "setText",
+            QtCore.Qt.QueuedConnection,
+            QtCore.Q_ARG(str, text)
+        )
 
     @staticmethod
-    def _accumulate_static(itm: QtWidgets.QTreeWidgetItem,
-                           size_cache: Dict[Path, int]) -> (int, int):
+    def _accumulate_static(itm, size_cache):
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return 0, 0
-        path: Path = itm.data(0, ExcludeDialog.PATH_ROLE)
+        path = itm.data(0, ExcludeDialog.PATH_ROLE)
         if st == QtCore.Qt.Checked:
-            if path.is_dir():
-                size = ExcludeDialog._dir_size_cached(path, size_cache)
-            else:
-                size = itm.data(0, ExcludeDialog.SIZE_ROLE)
+            size = ExcludeDialog._dir_size_cached(path, size_cache) if path.is_dir() else itm.data(0,
+                                                                                                   ExcludeDialog.SIZE_ROLE)
             return size, 1
         total_size, total_count = 0, 0
         for i in range(itm.childCount()):
-            sz, cnt = ExcludeDialog._accumulate_static(
-                itm.child(i), size_cache
-            )
+            sz, cnt = ExcludeDialog._accumulate_static(itm.child(i), size_cache)
             total_size += sz
             total_count += cnt
         return total_size, total_count
 
     @staticmethod
-    def _dir_size_cached(p: Path,
-                         size_cache: Dict[Path, int]) -> int:
+    def _dir_size_cached(p, size_cache):
         if p in size_cache:
             return size_cache[p]
         total = 0
@@ -257,9 +245,7 @@ class ExcludeDialog(QtWidgets.QDialog):
     def _collapse_cur(self):
         self._set_expanded_recursive(self.tree.currentItem(), False)
 
-    def _set_expanded_recursive(self,
-                                itm: QtWidgets.QTreeWidgetItem | None,
-                                expand: bool):
+    def _set_expanded_recursive(self, itm, expand):
         if itm is None:
             return
         self._load_children(itm)
@@ -285,11 +271,11 @@ class ExcludeDialog(QtWidgets.QDialog):
             res[rule.source] = [str(p.relative_to(rule.source)) for p in minimal]
         return res
 
-    def _collect(self, itm: QtWidgets.QTreeWidgetItem, out: List[Path]):
+    def _collect(self, itm, out: List[Path]):
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return
-        p: Path = itm.data(0, self.PATH_ROLE)
+        p = itm.data(0, self.PATH_ROLE)
         if st == QtCore.Qt.Checked:
             out.append(p)
             return

@@ -4,6 +4,9 @@ import io
 import os
 import shutil
 from pathlib import Path
+from typing import Iterable
+
+from src.config import PathRule
 
 
 def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
@@ -11,10 +14,8 @@ def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
     Compute SHA-1 digest of a file, using file_digest if available.
     """
     try:
-        # Python 3.11+
         return hashlib.file_digest(path, 'sha1', buf_size).hex()
     except AttributeError:
-        # Fallback for older versions
         h = hashlib.sha1()
         with path.open('rb') as f:
             while chunk := f.read(buf_size):
@@ -59,9 +60,29 @@ def human_readable(size: int) -> str:
     return f"{size:.2f} PB"
 
 
+def iter_files(rule: PathRule) -> Iterable[Path]:
+    """
+    Generate all files under rule.source, excluding any paths in rule.excludes.
+    """
+    root = Path(rule.source).expanduser().resolve()
+    excludes = {root / Path(e) for e in rule.excludes}
+
+    for cur, dirs, files in os.walk(root, topdown=True):
+        rel_cur = Path(cur).relative_to(root)
+        dirs[:] = [
+            d for d in dirs
+            if not any((rel_cur / d).is_relative_to(ex.relative_to(root)) for ex in excludes)
+        ]
+        for f in files:
+            rel_f = rel_cur / f
+            if any(rel_f.is_relative_to(ex.relative_to(root)) for ex in excludes):
+                continue
+            yield Path(cur) / f
+
+
 def dir_size(path: Path) -> int:
     """
-    Calculate total size of a file or directory. Uses os.walk for reliability.
+    Calculate total size of a file or directory, excluding inaccessible entries.
     """
     if not path.exists():
         return 0
@@ -70,14 +91,23 @@ def dir_size(path: Path) -> int:
             return path.stat().st_size
         except OSError:
             return 0
+
     total = 0
-    for root, dirs, files in os.walk(path, topdown=True):
-        for f in files:
-            try:
-                fp = Path(root) / f
-                total += fp.stat().st_size
-            except OSError:
-                continue
+    stack = [path]
+    while stack:
+        cur = stack.pop()
+        try:
+            with os.scandir(cur) as it:
+                for entry in it:
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        try:
+                            total += entry.stat().st_size
+                        except OSError:
+                            pass
+        except (PermissionError, FileNotFoundError):
+            pass
     return total
 
 
