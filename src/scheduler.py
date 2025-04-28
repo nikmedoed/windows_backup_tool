@@ -54,17 +54,19 @@ def delete(key: str) -> None:
     ])
 
 
-def _create(key: str) -> None:
+def schedule(key: str) -> None:
     exe = Path(sys.executable)
+    script = Path(__file__).parent.parent / "main.py"
+    if script.exists():
+        tr = f'"{exe}" "{script}" --backup'
+    else:
+        tr = f'"{exe}" --backup'
+
     name, trigger = TASKS[key]
     _run_schtasks([
         "/Create",
         "/TN", _full_name(key),
-        "/TR", f'"{exe}" --backup"',
+        "/TR", tr,
         "/RL", "HIGHEST",
         *trigger
     ])
-
-
-def schedule(key: str) -> None:
-    _create(key)
