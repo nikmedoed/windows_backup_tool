@@ -24,6 +24,8 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Skips unchanged files (by size & timestamp, with optional SHA‑1 checksum).
 - **Exclusion dialog**  
   Easily select which folders/files to include or exclude.
+- **Live size estimate**  
+  Dynamically shows the estimated backup size after applying exclusions.
 - **Scheduler integration**  
   Create Windows Task Scheduler triggers: Daily, Weekly, On Logon, On Idle, On Unlock.
 - **Multi‑threaded**  
@@ -35,7 +37,7 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
 
 <div align="center">
   <img src="assets/exclude.png" alt="Exclude Dialog" width="400"><br>
-  <em>Dialog for excluding folder and files</em>
+  <em>Dialog for excluding folders and files</em>
 </div>
 
 ## Quick Start
@@ -48,9 +50,10 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
    ```bash
    python main.py
    ```
-    - Choose **Backup Target** and **Source** folders.
-    - Configure **Exclusions** via the tree view.
-    - Select **Schedule** triggers and click **Save**.
+   - If no flags are passed, the GUI will be launched. Admin rights will be requested if needed.
+   - Choose **Backup Target** and **Source** folders.
+   - Configure **Exclusions** via the tree view.
+   - Select **Schedule** triggers and click **Save**.
 
 Settings are saved to `%AppData%\BackupTool\config.json`.
 
@@ -61,6 +64,14 @@ Run a backup using saved settings (for Task Scheduler or scripts):
 ```bash
 python main.py --backup
 ```
+
+Launch GUI with a visible console window (for debugging):
+
+```bash
+python main.py --dev
+```
+
+> Note: SHA‑1 verification is supported internally but not exposed in the interface yet.
 
 <p align="center">
   <img src="assets/CLI.png" alt="CLI Mode" width="600">
@@ -90,6 +101,8 @@ To update:
 - `locales/app.pot`: template
 - `locales/<lang>/LC_MESSAGES/*.po/.mo`: language files
 
+> Qt interface is localized only when the system language is Russian (`LANG=ru_*`)
+
 ## Building Executable
 
 Generate a standalone `.exe`:
@@ -98,7 +111,8 @@ Generate a standalone `.exe`:
 pyinstaller --onefile --uac-admin --name BackupTool --add-data "locales;locales" --add-data "icon;icon" --icon icon/icon.ico main.py
 ```
 
-Find the result in `dist/BackupTool.exe`.
+> `--uac-admin`: requests elevated privileges when launched  
+> Result is saved in `dist/BackupTool.exe`.
 
 ## Logs
 
