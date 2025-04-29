@@ -1,40 +1,42 @@
 # Windows Backup Tool
 
-A compact backup utility to mirror selected folders (e.g., `%AppData%`) into a target directory on Windows. It performs
-incremental copies, supports exclusions, scheduling, and offers a simple GUI.
+A compact backup utility to mirror selected folders (e.g., `%AppData%`) into a target directory on Windows.  
+It performs incremental copies, supports exclusions, scheduling, and offers a simple GUI.
 
-I created this tool to ensure that all my game and application save / config files on my GPD Win are backed up to an SD card, excluding unnecessary program folders so that my progress is always safe and easily restorable. 
+> **Why?**  
+> I created this tool to ensure that all my game and application save/config files on my GPD Win are backed up to an SD
+> card, excluding unnecessary program folders.  
+> Many utilities copy everything blindly or create massive snapshots. Applications can be reinstalled easily; your save
+> files and settings are what matter.  
+> Moreover, `%AppData%` has become cluttered with junk from Electron apps. This tool lets you **precisely** copy only
+> useful files.
 
-Other utilities often copy everything blindly or create massive snapshots. You can always reinstall applications, and save files and settings take up only a few gigabytes, so why take snapshots? Moreover, %AppData% has become cluttered with junk from Electron apps. This tool lets you configure exclusions to copy only new and useful files.
-
----
+<p align="center">
+  <img src="assets/window.png" alt="App interface" width="800">
+</p>
 
 ## Features
 
 - **Absolute-path mirroring**  
-  Preserves original folder structure under the target (e.g. `C:\Users\Foo\AppData\…` → `Backup\C\Users\Foo\AppData\…`).
+  Preserves original folder structure under the target (e.g., `C:\Users\Foo\AppData\…` →
+  `Backup\C\Users\Foo\AppData\…`).
 - **Incremental copies**  
   Skips unchanged files (by size & timestamp, with optional SHA‑1 checksum).
 - **Exclusion dialog**  
-  Checkbox‑tree UI to include/exclude files and folders.
+  Easily select which folders/files to include or exclude.
 - **Scheduler integration**  
   Create Windows Task Scheduler triggers: Daily, Weekly, On Logon, On Idle, On Unlock.
 - **Multi‑threaded**  
   Concurrent file copying for speed.
 - **Progress & logging**  
-  Real‑time progress bar and detailed logs (without interrupting the run).
+  Real‑time progress bar and detailed logs.
 - **Zero‑install**  
-  Run the `.exe` or Python script directly—no installer required.
+  Just run the `.exe` or Python script—no installer needed.
 
----
-
-## Requirements
-
-- **Windows:** 7 or later
-- **Python:** 3.7+
-- **Dependencies:** listed in `requirements.txt`
-
----
+<div align="center">
+  <img src="assets/exclude.png" alt="Exclude Dialog" width="400"><br>
+  <em>Dialog for excluding folder and files</em>
+</div>
 
 ## Quick Start
 
@@ -52,8 +54,6 @@ Other utilities often copy everything blindly or create massive snapshots. You c
 
 Settings are saved to `%AppData%\BackupTool\config.json`.
 
----
-
 ## CLI Mode
 
 Run a backup using saved settings (for Task Scheduler or scripts):
@@ -62,7 +62,9 @@ Run a backup using saved settings (for Task Scheduler or scripts):
 python main.py --backup
 ```
 
----
+<p align="center">
+  <img src="assets/CLI.png" alt="CLI Mode" width="600">
+</p>
 
 ## Scheduling
 
@@ -74,13 +76,12 @@ When you click **Save**, scheduled tasks are created/removed in Task Scheduler u
 - **On Idle** (20 min)
 - **On Unlock**
 
-Toggle these options in the GUI at any time.
-
----
+You can toggle these options in the GUI at any time.
 
 ## Localization
 
-Translations are managed with Babel. To update:
+Translations are managed with Babel.  
+To update:
 
 ```powershell
 ./update_translations.ps1
@@ -88,8 +89,6 @@ Translations are managed with Babel. To update:
 
 - `locales/app.pot`: template
 - `locales/<lang>/LC_MESSAGES/*.po/.mo`: language files
-
----
 
 ## Building Executable
 
@@ -101,14 +100,10 @@ pyinstaller --onefile --uac-admin --name BackupTool --add-data "locales;locales"
 
 Find the result in `dist/BackupTool.exe`.
 
----
-
 ## Logs
 
 - **No persistent log file**; monitor progress and messages in the GUI log window or console output
-- **backup_errors_YYYYMMDD_HHMMSS.log** on Desktop if errors occur
-
----
+- **`backup_errors_YYYYMMDD_HHMMSS.log`** is saved to Desktop if errors occur
 
 ## Development
 
