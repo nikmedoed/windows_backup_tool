@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Dict, List
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets, QtGui
 
 from src.config import Settings
 from src.i18n import _
@@ -63,10 +63,19 @@ class ExcludeDialog(QtWidgets.QDialog):
         self.tree.setColumnWidth(0, 520)
         self.tree.itemChanged.connect(self._on_item_changed)
         self.tree.itemExpanded.connect(self._on_expand)
+        self.tree.setExpandsOnDoubleClick(False)
+        self.tree.itemDoubleClicked.connect(self._open_path)
         vbox.addWidget(self.tree, 1)
 
         self.lbl_legend = QtWidgets.QLabel()
         vbox.addWidget(self.lbl_legend)
+
+    def _open_path(self, item: QtWidgets.QTreeWidgetItem, column: int):
+        path: Path = item.data(0, self.PATH_ROLE)
+        if not path or not path.exists():
+            return
+        QtGui.QDesktopServices.openUrl(
+            QtCore.QUrl.fromLocalFile(str(path)))
 
     def _populate_roots(self):
         self.tree.clear()
