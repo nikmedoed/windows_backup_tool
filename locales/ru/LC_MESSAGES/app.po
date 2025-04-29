@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: muromcevn@gmail.com\n"
-"POT-Creation-Date: 2025-04-28 22:50+0400\n"
+"POT-Creation-Date: 2025-04-29 21:54+0400\n"
 "PO-Revision-Date: 2025-04-28 16:12+0400\n"
 "Last-Translator: Nikita Muromtsev <muromcevn@gmail.com>\n"
 "Language: ru\n"
@@ -18,240 +18,268 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: main.py:7
+#: main.py:8
 msgid "Windows Backup Tool"
 msgstr "Инструмент резервного копирования Windows"
 
-#: main.py:11
-msgid "Run backup according to the saved configuration (called from the scheduler)"
+#: main.py:12
+msgid ""
+"Run backup according to the saved configuration (called from the "
+"scheduler)"
 msgstr "Запуск копирования по сохранённой конфигурации (вызывается планировщиком)"
 
-#: main.py:21
+#: main.py:17
+msgid "Run in development mode (if elevating, show console window)"
+msgstr "Запуск в режиме разработки (при повышении прав показывать консоль)"
+
+#: main.py:27
 msgid "No saved configuration, run GUI first."
 msgstr "Конфигурация не найдена, запустите графический интерфейс."
 
-#: src/copier.py:27
+#: src/copier.py:29
 #, python-brace-format
-msgid "Scanned: {scanned} | Copied: {copied} | Unchanged: {unchanged} | Errors: {errors}"
-msgstr "Просканировано: {scanned} | Скопировано: {copied} | Без изменений: {unchanged} | Ошибок: {errors}"
+msgid ""
+"Scanned: {scanned} | Copied: {copied} | Unchanged: {unchanged} | Errors: "
+"{errors}"
+msgstr ""
+"Просканировано: {scanned} | Скопировано: {copied} | Без изменений: "
+"{unchanged} | Ошибок: {errors}"
 
-#: src/copier.py:53
+#: src/copier.py:55
 msgid "Progress"
 msgstr "Ход выполнения"
 
-#: src/copier.py:55
+#: src/copier.py:57
 msgid "🔍 Starting backup…"
 msgstr "🔍 Начинается копирование…"
 
-#: src/copier.py:59
+#: src/copier.py:61
 #, python-brace-format
 msgid "❌ Target path \"{0}\" exists but is not a directory"
 msgstr "❌ Путь \"{0}\" существует, но это не папка"
 
-#: src/copier.py:64
+#: src/copier.py:66
 #, python-brace-format
 msgid "📁 Created target directory {0}"
 msgstr "📁 Создана папка назначения {0}"
 
-#: src/copier.py:66
+#: src/copier.py:68
 #, python-brace-format
 msgid "❌ Could not create target directory \"{0}\": {1}"
 msgstr "❌ Не удалось создать папку \"{0}\": {1}"
 
-#: src/copier.py:76
+#: src/copier.py:78
 msgid "📂 Scanning files…"
 msgstr "📂 Сканирование файлов…"
 
-#: src/copier.py:81
+#: src/copier.py:84
+msgid ""
+"\n"
+"⚠️ Backup finished with errors. Press Enter to exit…"
+msgstr ""
+"\n"
+"⚠️ Копирование завершено с ошибками. Нажмите Enter для выхода…"
+
+#: src/copier.py:86
+msgid ""
+"\n"
+"✅ Backup completed successfully. Window will close in 10 seconds…"
+msgstr ""
+"\n"
+"✅ Копирование успешно завершено. Окно закроется через 10 секунд…"
+
+#: src/copier.py:93
 msgid "🛠 Analyzing files on changes…"
 msgstr "🛠 Анализ изменений…"
 
-#: src/copier.py:82
+#: src/copier.py:94
 msgid "Analyzing…"
 msgstr "Анализ…"
 
-#: src/copier.py:97
+#: src/copier.py:109
 msgid "✅ No changes detected. Backup not required."
 msgstr "✅ Изменений нет. Копирование не требуется."
 
-#: src/copier.py:102
+#: src/copier.py:114
 #, python-brace-format
 msgid "▶ {tasks} files to copy, {unchanged} unchanged"
 msgstr "▶ Копировать: {tasks} файлов, без изменений: {unchanged}"
 
-#: src/copier.py:114
+#: src/copier.py:126
 msgid "Copying…"
 msgstr "Копирование…"
 
-#: src/copier.py:128
+#: src/copier.py:139
 #, python-brace-format
 msgid "❗ Error copying {src} → {dst} ({exc})"
 msgstr "❗ Ошибка копирования {src} → {dst} ({exc})"
 
-#: src/copier.py:144
+#: src/copier.py:154
 #, python-brace-format
 msgid "⚠️ Errors logged in: {0}"
 msgstr "⚠️ Ошибки записаны в: {0}"
 
-#: src/gui/ExcludeDialog.py:22 src/gui/MainWindow.py:53 src/gui/MainWindow.py:57
+#: src/gui/ExcludeDialog.py:21 src/gui/MainWindow.py:51
+#: src/gui/MainWindow.py:55
 msgid "Exclusions"
 msgstr "Исключения"
 
-#: src/gui/ExcludeDialog.py:45
+#: src/gui/ExcludeDialog.py:44
 msgid "Expand All"
 msgstr "Развернуть всё"
 
-#: src/gui/ExcludeDialog.py:46
+#: src/gui/ExcludeDialog.py:45
 msgid "Collapse All"
 msgstr "Свернуть всё"
 
-#: src/gui/ExcludeDialog.py:47
+#: src/gui/ExcludeDialog.py:46
 msgid "Expand Current"
 msgstr "Развернуть выбранное"
 
-#: src/gui/ExcludeDialog.py:48
+#: src/gui/ExcludeDialog.py:47
 msgid "Collapse Current"
 msgstr "Свернуть выбранное"
 
-#: src/gui/ExcludeDialog.py:49
+#: src/gui/ExcludeDialog.py:48
 msgid "Select All"
 msgstr "Выбрать всё"
 
-#: src/gui/ExcludeDialog.py:50
+#: src/gui/ExcludeDialog.py:49
 msgid "Deselect All"
 msgstr "Снять выделение"
 
-#: src/gui/ExcludeDialog.py:51
+#: src/gui/ExcludeDialog.py:50
 msgid "Full Height"
 msgstr "Полная высота"
 
-#: src/gui/ExcludeDialog.py:52 src/gui/MainWindow.py:86
+#: src/gui/ExcludeDialog.py:51 src/gui/MainWindow.py:84
 msgid "Save"
 msgstr "Сохранить"
 
-#: src/gui/ExcludeDialog.py:63
+#: src/gui/ExcludeDialog.py:62
 msgid "File / Folder"
 msgstr "Файл / Папка"
 
-#: src/gui/ExcludeDialog.py:63
+#: src/gui/ExcludeDialog.py:62
 msgid "Size"
 msgstr "Размер"
 
-#: src/gui/ExcludeDialog.py:194
+#: src/gui/ExcludeDialog.py:202
 #, python-brace-format
 msgid "Selected: {count} • Size: {size}"
 msgstr "Выбрано: {count} • Размер: {size}"
 
-#: src/gui/MainWindow.py:23
+#: src/gui/MainWindow.py:22
 msgid "Backup Tool Settings"
 msgstr "Настройки копирования"
 
-#: src/gui/MainWindow.py:36
+#: src/gui/MainWindow.py:34
 msgid "Backup target:"
 msgstr "Папка назначения:"
 
-#: src/gui/MainWindow.py:46
+#: src/gui/MainWindow.py:44
 msgid "Sources:"
 msgstr "Источники:"
 
-#: src/gui/MainWindow.py:50
+#: src/gui/MainWindow.py:48
 msgid "+ Add source"
 msgstr "+ Добавить источник"
 
-#: src/gui/MainWindow.py:51
+#: src/gui/MainWindow.py:49
 msgid "– Delete"
 msgstr "– Удалить"
 
-#: src/gui/MainWindow.py:52
+#: src/gui/MainWindow.py:50
 msgid "Clear"
 msgstr "Очистить"
 
-#: src/gui/MainWindow.py:62 src/gui/MainWindow.py:162
+#: src/gui/MainWindow.py:60 src/gui/MainWindow.py:160
 msgid "Exclusions for source:"
 msgstr "Исключения для источника:"
 
-#: src/gui/MainWindow.py:68
+#: src/gui/MainWindow.py:66
 msgid "Schedule"
 msgstr "Расписание"
 
-#: src/gui/MainWindow.py:70
+#: src/gui/MainWindow.py:68
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
 
-#: src/gui/MainWindow.py:71
+#: src/gui/MainWindow.py:69
 msgid "Weekly (Mon at 03:00)"
 msgstr "Каждую неделю (Пн в 03:00)"
 
-#: src/gui/MainWindow.py:72
+#: src/gui/MainWindow.py:70
 msgid "On logon"
 msgstr "При входе в систему"
 
-#: src/gui/MainWindow.py:73
+#: src/gui/MainWindow.py:71
 msgid "On idle (20 min)"
 msgstr "В простое (20 мин)"
 
-#: src/gui/MainWindow.py:74
+#: src/gui/MainWindow.py:72
 msgid "On unlock"
 msgstr "При разблокировке"
 
-#: src/gui/MainWindow.py:88
+#: src/gui/MainWindow.py:86
 msgid "Restore"
 msgstr "Восстановить"
 
-#: src/gui/MainWindow.py:90
+#: src/gui/MainWindow.py:88
 msgid "Run backup"
 msgstr "Сделать копию"
 
-#: src/gui/MainWindow.py:92
+#: src/gui/MainWindow.py:90
 msgid "Exit"
 msgstr "Выход"
 
-#: src/gui/MainWindow.py:137
+#: src/gui/MainWindow.py:135
 msgid "Select target directory"
 msgstr "Выберите папку назначения"
 
-#: src/gui/MainWindow.py:143
+#: src/gui/MainWindow.py:141
 msgid "Add source directory"
 msgstr "Добавить папку источника"
 
-#: src/gui/MainWindow.py:165
+#: src/gui/MainWindow.py:163
 #, python-brace-format
 msgid "Exclusions for: {source}"
 msgstr "Исключения для: {source}"
 
-#: src/gui/MainWindow.py:181 src/gui/MainWindow.py:199
+#: src/gui/MainWindow.py:179 src/gui/MainWindow.py:197
 msgid "Error"
 msgstr "Ошибка"
 
-#: src/gui/MainWindow.py:181
+#: src/gui/MainWindow.py:179
 msgid "Please specify the target directory"
 msgstr "Укажите папку назначения"
 
-#: src/gui/MainWindow.py:193
+#: src/gui/MainWindow.py:191
 msgid "Saved"
 msgstr "Сохранено"
 
-#: src/gui/MainWindow.py:199
+#: src/gui/MainWindow.py:197
 msgid "No settings found"
 msgstr "Настройки не найдены"
 
-#: src/gui/MainWindow.py:203
+#: src/gui/MainWindow.py:201
 msgid "Restored"
 msgstr "Восстановлено"
 
-#: src/gui/MainWindow.py:206
+#: src/gui/MainWindow.py:204
 msgid "Calculating size…"
 msgstr "Подсчёт размера…"
 
-#: src/gui/MainWindow.py:215
+#: src/gui/MainWindow.py:213
 #, python-brace-format
 msgid "Estimated backup size: {size}"
 msgstr "Оценочный размер копии: {size}"
 
-#: src/gui/MainWindow.py:221
+#: src/gui/MainWindow.py:219
 msgid "Backing up…"
 msgstr "Копирование…"
 
-#: src/gui/MainWindow.py:236
+#: src/gui/MainWindow.py:234
 msgid "Done"
 msgstr "Готово"
+
