@@ -1,4 +1,6 @@
+import atexit
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
@@ -76,6 +78,16 @@ def run_backup(
     _log(_("📂 Scanning files…"))
     all_files = [f for rule in cfg.sources for f in iter_files(rule)]
     stats = Stats(scanned=len(all_files))
+
+    def _pause_console():
+        if stats.errors:
+            input(_("\n⚠️ Backup finished with errors. Press Enter to exit…"))
+        else:
+            print(_("\n✅ Backup completed successfully. Window will close in 10 seconds…"))
+            time.sleep(10)
+
+    if progress_cb is None and log_cb is None:
+        atexit.register(_pause_console)
     tasks: list[tuple[Path, Path]] = []
 
     _log(_("🛠 Analyzing files on changes…"))
@@ -124,10 +136,8 @@ def run_backup(
                 stats.inc("copied")
             except Exception as exc:
                 stats.inc("errors")
-                _log(
-                    _("❗ Error copying {src} → {dst} ({exc})")
-                    .format(src=src, dst=dst, exc=exc)
-                )
+                _log(_("❗ Error copying {src} → {dst} ({exc})").format(
+                    src=src, dst=dst, exc=exc))
             done += 1
             if not use_tqdm:
                 _prog(done, len(tasks))
