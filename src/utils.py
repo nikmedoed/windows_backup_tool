@@ -1,14 +1,18 @@
 import ctypes
 import hashlib
 import io
+import math
 import os
 import shutil
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import Final
 from typing import Iterable
 
 from src.config import PathRule
+
+_MTIME_TOLERANCE: Final[float] = 2.0
 
 
 def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
@@ -27,7 +31,19 @@ def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
 
 def same_file(src: Path, dst: Path, use_hash: bool = False) -> bool:
     """
-    Quick check by size and mtime; optional SHA-1 if use_hash=True.
+    Returns True if the destination file exists, has the same size,
+    and similar modification time (within tolerance). Optionally compares
+    SHA-1 hashes if `use_hash` is True.
+
+    This avoids false positives from timestamp rounding on filesystems like exFAT.
+
+    Args:
+        src (Path): Source file path.
+        dst (Path): Destination file path.
+        use_hash (bool): Whether to compare file hashes.
+
+    Returns:
+        bool: True if files are considered identical.
     """
     if not dst.exists():
         return False
@@ -36,7 +52,9 @@ def same_file(src: Path, dst: Path, use_hash: bool = False) -> bool:
         ds = dst.stat()
     except OSError:
         return False
-    if ss.st_size != ds.st_size or int(ss.st_mtime) != int(ds.st_mtime):
+    if ss.st_size != ds.st_size:
+        return False
+    if not math.isclose(ss.st_mtime, ds.st_mtime, abs_tol=_MTIME_TOLERANCE):
         return False
     if use_hash:
         return sha1(src) == sha1(dst)
