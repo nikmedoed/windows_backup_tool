@@ -7,7 +7,7 @@ from src.utils import dir_size
 
 
 class SizeWorker(QtCore.QThread):
-    sizeCalculated = QtCore.Signal(int)
+    sizeCalculated = QtCore.Signal(object) 
 
     def __init__(self, sources: list[PathRule]):
         super().__init__()
