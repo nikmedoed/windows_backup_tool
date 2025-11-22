@@ -32,6 +32,8 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Concurrent file copying for speed.
 - **Progress & logging**  
   Real‑time progress bar and detailed logs.
+- **Background preferences**  
+  Decide whether to show the console progress window or close immediately, and monitor the time of the last successful backup directly in the GUI.
 - **Zero‑install**  
   Just run the `.exe` or Python script—no installer needed.
 

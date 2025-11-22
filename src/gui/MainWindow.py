@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtWidgets import QSizePolicy
@@ -15,7 +16,7 @@ from .SizeWorker import SizeWorker
 class MainWindow(QtWidgets.QMainWindow):
     progressChanged = QtCore.Signal(int, int)
     logAppended = QtCore.Signal(str)
-    backupFinished = QtCore.Signal()
+    backupFinished = QtCore.Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -80,6 +81,17 @@ class MainWindow(QtWidgets.QMainWindow):
             "onunlock": self.cb_unlock,
         }
 
+        behavior_group = QtWidgets.QGroupBox(_("Background run"))
+        behavior_layout = QtWidgets.QVBoxLayout(behavior_group)
+        self.chk_wait = QtWidgets.QCheckBox(_("Wait before closing console window"))
+        self.chk_console = QtWidgets.QCheckBox(_("Show console progress"))
+        behavior_layout.addWidget(self.chk_wait)
+        behavior_layout.addWidget(self.chk_console)
+        self.lbl_last_success = QtWidgets.QLabel()
+
+        self.status_label = QtWidgets.QLabel()
+        self.status_label.setStyleSheet("color: green;")
+
         action_layout = QtWidgets.QHBoxLayout()
         btn_save = QtWidgets.QPushButton(_("Save"))
         btn_save.clicked.connect(self._save)
@@ -89,16 +101,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_run.clicked.connect(self._run)
         btn_exit = QtWidgets.QPushButton(_("Exit"))
         btn_exit.clicked.connect(self.close)
-        for w in (btn_save, btn_restore, self.btn_run):
-            action_layout.addWidget(w)
+        action_layout.addWidget(btn_save)
+        action_layout.addWidget(btn_restore)
+        action_layout.addWidget(self.btn_run)
+        action_layout.addWidget(self.status_label)
         action_layout.addStretch(1)
         action_layout.addWidget(btn_exit)
 
-        self.status_label = QtWidgets.QLabel()
-        self.status_label.setStyleSheet("color: green;")
         self.size_label = QtWidgets.QLabel()
         self.progress_bar = QtWidgets.QProgressBar()
         self.txt_log = QtWidgets.QTextEdit(readOnly=True)
+        self.txt_log.setMinimumHeight(130)
 
         self.lst_src.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.lst_excl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
@@ -106,15 +119,17 @@ class MainWindow(QtWidgets.QMainWindow):
         grid = QtWidgets.QGridLayout(cw)
         grid.addLayout(target_layout, 0, 0, 1, 2)
         grid.addLayout(src_layout, 1, 0)
-        grid.addLayout(excl_layout, 1, 1, 7, 1)
+        grid.addLayout(excl_layout, 1, 1, 9, 1)
         grid.addWidget(schedule_group, 2, 0)
-        grid.addLayout(action_layout, 3, 0)
-        grid.addWidget(self.status_label, 4, 0)
+        grid.addWidget(behavior_group, 3, 0)
+        grid.addLayout(action_layout, 4, 0)
         grid.addWidget(self.size_label, 5, 0)
-        grid.addWidget(self.progress_bar, 6, 0)
-        grid.addWidget(self.txt_log, 7, 0)
+        grid.addWidget(self.lbl_last_success, 6, 0)
+        grid.addWidget(self.progress_bar, 7, 0)
+        grid.addWidget(self.txt_log, 8, 0)
         grid.setRowStretch(1, 1)
         grid.setRowStretch(7, 1)
+        grid.setRowStretch(8, 3)
         grid.setColumnStretch(0, 5)
         grid.setColumnStretch(1, 4)
 
@@ -129,6 +144,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._refresh_excludes()
         for key, cb in self.schedule_controls.items():
             cb.setChecked(exists(key))
+        self.chk_wait.setChecked(self.cfg.wait_on_finish)
+        self.chk_console.setChecked(self.cfg.show_console)
+        self._update_last_success_label()
         self._update_backup_size()
 
     def _pick_target(self):
@@ -179,6 +197,8 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
             return
         self.cfg.target_dir = target
+        self.cfg.wait_on_finish = self.chk_wait.isChecked()
+        self.cfg.show_console = self.chk_console.isChecked()
         self.cfg.save()
         for key, cb in self.schedule_controls.items():
             if cb.isChecked():
@@ -218,18 +238,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar.setValue(0)
         self.status_label.setText(_("Backing up…"))
         self.btn_run.setEnabled(False)
-        threading.Thread(
-            target=run_backup,
-            args=(self.cfg, self.progressChanged.emit, self.logAppended.emit),
-            daemon=True
-        ).start()
+        def _job():
+            success = run_backup(self.cfg, self.progressChanged.emit, self.logAppended.emit)
+            self.backupFinished.emit(success)
+        threading.Thread(target=_job, daemon=True).start()
 
     def _handle_progress(self, i: int, tot: int):
         self.progress_bar.setValue(int(i / tot * 100) if tot else 100)
-        if tot and i >= tot:
-            self.backupFinished.emit()
 
-    def _on_backup_finished(self):
+    def _update_last_success_label(self):
+        if self.cfg.last_success:
+            try:
+                dt = datetime.fromisoformat(self.cfg.last_success)
+                pretty = dt.strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pretty = self.cfg.last_success
+            text = _("Last successful backup: {ts}").format(ts=pretty)
+        else:
+            text = _("Last successful backup: never")
+        self.lbl_last_success.setText(text)
+
+    def _on_backup_finished(self, success: bool):
         self.btn_run.setEnabled(True)
-        self.status_label.setText(_("Done"))
+        self.status_label.setText(_("Done") if success else _("Finished with errors"))
+        self._update_last_success_label()
         self._update_backup_size()

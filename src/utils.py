@@ -149,6 +149,17 @@ def _hide_console() -> None:
     ctypes.windll.user32.ShowWindow(whnd, 0)
 
 
+def notify_user(title: str, message: str, icon: int = 0x00000040) -> None:
+    """
+    Display a simple Windows message box (falls back to stdout elsewhere).
+    """
+    if sys.platform != "win32":
+        print(f"{title}: {message}")
+        return
+    MB_TOPMOST = 0x00040000
+    ctypes.windll.user32.MessageBoxW(None, message, title, icon | MB_TOPMOST)
+
+
 def is_admin() -> bool:
     if sys.platform != "win32":
         import os

@@ -1,7 +1,7 @@
 import argparse
 
 from src.i18n import _
-from src.utils import is_admin
+from src.utils import is_admin, _hide_console
 
 
 def main() -> None:
@@ -22,10 +22,14 @@ def main() -> None:
     if args.backup:
         from src.config import Settings
         from src.copier import run_backup
+
         cfg = Settings.load()
         if not cfg:
             raise SystemExit(_("No saved configuration, run GUI first."))
-        run_backup(cfg)
+        if not cfg.show_console:
+            _hide_console()
+        success = run_backup(cfg)
+        raise SystemExit(0 if success else 1)
     else:
         try:
             if not is_admin():
@@ -34,7 +38,6 @@ def main() -> None:
                 elevate(show_console=args.dev)
         except ImportError:
             pass
-        from src.utils import _hide_console
         from src.gui import open_gui
         _hide_console()
         open_gui()

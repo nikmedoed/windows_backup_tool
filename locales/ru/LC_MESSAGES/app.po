@@ -201,6 +201,18 @@ msgstr "Исключения для источника:"
 msgid "Schedule"
 msgstr "Расписание"
 
+#: src/gui/MainWindow.py:75
+msgid "Background run"
+msgstr "Настройки запуска"
+
+#: src/gui/MainWindow.py:77
+msgid "Wait before closing console window"
+msgstr "Ждать перед закрытием консоли"
+
+#: src/gui/MainWindow.py:78
+msgid "Show console progress"
+msgstr "Показывать прогресс в консоли"
+
 #: src/gui/MainWindow.py:68
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
@@ -283,3 +295,11 @@ msgstr "Копирование…"
 msgid "Done"
 msgstr "Готово"
 
+#: src/gui/MainWindow.py:249
+#, python-brace-format
+msgid "Last successful backup: {ts}"
+msgstr "Последний успешный бэкап: {ts}"
+
+#: src/gui/MainWindow.py:251
+msgid "Last successful backup: never"
+msgstr "Последний успешный бэкап: никогда"
