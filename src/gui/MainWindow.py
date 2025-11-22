@@ -85,8 +85,12 @@ class MainWindow(QtWidgets.QMainWindow):
         behavior_layout = QtWidgets.QVBoxLayout(behavior_group)
         self.chk_wait = QtWidgets.QCheckBox(_("Wait before closing console window"))
         self.chk_console = QtWidgets.QCheckBox(_("Show console progress"))
+        self.chk_tray = QtWidgets.QCheckBox(_("Show tray icon while backing up"))
+        self.chk_overlay = QtWidgets.QCheckBox(_("Show floating bubble when finished"))
         behavior_layout.addWidget(self.chk_wait)
         behavior_layout.addWidget(self.chk_console)
+        behavior_layout.addWidget(self.chk_tray)
+        behavior_layout.addWidget(self.chk_overlay)
         self.lbl_last_success = QtWidgets.QLabel()
 
         self.status_label = QtWidgets.QLabel()
@@ -146,6 +150,8 @@ class MainWindow(QtWidgets.QMainWindow):
             cb.setChecked(exists(key))
         self.chk_wait.setChecked(self.cfg.wait_on_finish)
         self.chk_console.setChecked(self.cfg.show_console)
+        self.chk_tray.setChecked(self.cfg.show_tray_icon)
+        self.chk_overlay.setChecked(self.cfg.show_overlay)
         self._update_last_success_label()
         self._update_backup_size()
 
@@ -199,6 +205,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg.target_dir = target
         self.cfg.wait_on_finish = self.chk_wait.isChecked()
         self.cfg.show_console = self.chk_console.isChecked()
+        self.cfg.show_tray_icon = self.chk_tray.isChecked()
+        self.cfg.show_overlay = self.chk_overlay.isChecked()
         self.cfg.save()
         for key, cb in self.schedule_controls.items():
             if cb.isChecked():

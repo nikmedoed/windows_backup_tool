@@ -34,6 +34,10 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Real‑time progress bar and detailed logs.
 - **Background preferences**  
   Decide whether to show the console progress window or close immediately, and monitor the time of the last successful backup directly in the GUI.
+- **Quiet tray indicator**  
+  Optional spinner in the Windows tray while scheduled backups run silently, so games stay fullscreen without stray consoles.
+- **Floating overlay**  
+  A small translucent bubble can pop up (configurable) when backups finish, providing feedback without minimizing full-screen apps.
 - **Zero‑install**  
   Just run the `.exe` or Python script—no installer needed.
 
@@ -66,6 +70,10 @@ Run a backup using saved settings (for Task Scheduler or scripts):
 ```bash
 python main.py --backup
 ```
+
+If the **Show console progress** option is disabled, you can enable **Show tray icon while backing up** in the GUI.  
+This keeps scheduled runs completely silent and instead displays a temporary tray spinner that disappears when the job finishes.  
+To also get a subtle success/error hint, enable **Show floating bubble when finished**—it fades in/out above other windows without stealing focus.
 
 Launch GUI with a visible console window (for debugging):
 

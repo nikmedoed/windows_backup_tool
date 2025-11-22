@@ -25,6 +25,8 @@ class Settings:
     sources: List[PathRule] = field(default_factory=list)
     wait_on_finish: bool = True
     show_console: bool = True
+    show_tray_icon: bool = True
+    show_overlay: bool = True
     last_success: Optional[str] = None
 
     def __post_init__(self):
@@ -36,6 +38,10 @@ class Settings:
             raise ValueError("Settings.wait_on_finish must be bool")
         if not isinstance(self.show_console, bool):
             raise ValueError("Settings.show_console must be bool")
+        if not isinstance(self.show_tray_icon, bool):
+            raise ValueError("Settings.show_tray_icon must be bool")
+        if not isinstance(self.show_overlay, bool):
+            raise ValueError("Settings.show_overlay must be bool")
         if self.last_success is not None and not isinstance(self.last_success, str):
             raise ValueError("Settings.last_success must be str or None")
 
@@ -51,6 +57,8 @@ class Settings:
                 sources=[PathRule(**r) for r in data.get("sources", [])],
                 wait_on_finish=data.get("wait_on_finish", True),
                 show_console=data.get("show_console", True),
+                show_tray_icon=data.get("show_tray_icon", True),
+                show_overlay=data.get("show_overlay", True),
                 last_success=data.get("last_success"),
             )
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:

@@ -28,7 +28,17 @@ def main() -> None:
             raise SystemExit(_("No saved configuration, run GUI first."))
         if not cfg.show_console:
             _hide_console()
-        success = run_backup(cfg)
+        success = False
+        if cfg.show_tray_icon:
+            try:
+                from src.tray import run_with_tray
+                success = run_with_tray(cfg)
+            except Exception as exc:
+                print(_("Tray icon mode failed ({exc}). Falling back to console output.")
+                      .format(exc=exc))
+                success = run_backup(cfg)
+        else:
+            success = run_backup(cfg)
         raise SystemExit(0 if success else 1)
     else:
         try:

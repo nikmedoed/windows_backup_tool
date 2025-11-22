@@ -213,6 +213,14 @@ msgstr "Ждать перед закрытием консоли"
 msgid "Show console progress"
 msgstr "Показывать прогресс в консоли"
 
+#: src/gui/MainWindow.py:79
+msgid "Show tray icon while backing up"
+msgstr "Показывать значок в трее во время копирования"
+
+#: src/gui/MainWindow.py:80
+msgid "Show floating bubble when finished"
+msgstr "Показывать всплывающее уведомление после завершения"
+
 #: src/gui/MainWindow.py:68
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
@@ -295,6 +303,10 @@ msgstr "Копирование…"
 msgid "Done"
 msgstr "Готово"
 
+#: src/gui/MainWindow.py:236
+msgid "Finished with errors"
+msgstr "Завершено с ошибками"
+
 #: src/gui/MainWindow.py:249
 #, python-brace-format
 msgid "Last successful backup: {ts}"
@@ -303,3 +315,33 @@ msgstr "Последний успешный бэкап: {ts}"
 #: src/gui/MainWindow.py:251
 msgid "Last successful backup: never"
 msgstr "Последний успешный бэкап: никогда"
+
+#: main.py:37
+#, python-brace-format
+msgid "Tray icon mode failed ({exc}). Falling back to console output."
+msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
+
+#: src/tray.py:35
+msgid "Starting backup…"
+msgstr "Запуск копирования…"
+
+#: src/tray.py:95
+#, python-brace-format
+msgid "Backup in progress ({pct}%)"
+msgstr "Копирование выполняется ({pct}%)"
+
+#: src/tray.py:104
+msgid "Backup completed"
+msgstr "Копирование завершено"
+
+#: src/tray.py:104
+msgid "Backup failed"
+msgstr "Копирование завершилось неудачно"
+
+#: src/tray.py:105
+msgid "Done. You can close this notification."
+msgstr "Готово. Можно закрыть уведомление."
+
+#: src/tray.py:105
+msgid "Check logs for details."
+msgstr "Проверьте логи для подробностей."
