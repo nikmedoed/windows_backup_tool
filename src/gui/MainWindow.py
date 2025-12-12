@@ -13,6 +13,13 @@ from .ExcludeDialog import ExcludeDialog
 from .SizeWorker import SizeWorker
 
 
+class _TightItemDelegate(QtWidgets.QStyledItemDelegate):
+    """Render list items with minimal vertical padding."""
+    def sizeHint(self, option, index):
+        fm = option.fontMetrics
+        return QtCore.QSize(option.rect.width(), fm.height() + 2)
+
+
 class MainWindow(QtWidgets.QMainWindow):
     progressChanged = QtCore.Signal(int, int)
     logAppended = QtCore.Signal(str)
@@ -39,7 +46,24 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_pick.clicked.connect(self._pick_target)
         target_layout.addWidget(btn_pick)
 
+        def _min_list_height(widget: QtWidgets.QListWidget, rows: float) -> int:
+            """Return a pixel height that fits the requested number of rows (with a small hint of the next one)."""
+            row_height = widget.sizeHintForRow(0)
+            if row_height <= 0:
+                row_height = widget.fontMetrics().lineSpacing() + 8
+            margins = widget.contentsMargins()
+            frame = widget.frameWidth() * 2
+            return int(row_height * rows + margins.top() + margins.bottom() + frame)
+
         self.lst_src = QtWidgets.QListWidget()
+        self.lst_src.setItemDelegate(_TightItemDelegate(self.lst_src))
+        self.lst_src.setViewportMargins(0, 0, 0, 0)
+        self.lst_src.setStyleSheet(
+            "QListWidget::item { padding: 0px 0px 0px 8px; } "
+            "QListWidget::item:selected { padding: 0px 0px 0px 8px; } "
+            "QListWidget::indicator { left: 2px; }"
+        )
+        self.lst_src.setMinimumHeight(_min_list_height(self.lst_src, 3.5))
         self.lst_src.currentRowChanged.connect(self._refresh_excludes)
         src_layout = QtWidgets.QVBoxLayout()
         src_layout.addWidget(QtWidgets.QLabel(_("Sources:")))
@@ -60,18 +84,34 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.lbl_excl = QtWidgets.QLabel(_("Exclusions for source:"))
         self.lst_excl = QtWidgets.QListWidget()
+        self.lst_excl.setItemDelegate(_TightItemDelegate(self.lst_excl))
+        self.lst_excl.setSpacing(0)
+        self.lst_excl.setContentsMargins(0, 0, 0, 0)
+        self.lst_excl.setViewportMargins(2, 0, 0, 0)
+        self.lst_excl.setStyleSheet(
+            "QListView { padding: 0px; margin: 0px; } "
+            "QListWidget::item { padding: 0px; margin: 0px; } "
+            "QListWidget::item:selected { padding: 0px; margin: 0px; }"
+        )
         excl_layout = QtWidgets.QVBoxLayout()
         excl_layout.addWidget(self.lbl_excl)
         excl_layout.addWidget(self.lst_excl)
 
         schedule_group = QtWidgets.QGroupBox(_("Schedule"))
         schedule_layout = QtWidgets.QVBoxLayout(schedule_group)
+        schedule_layout.setContentsMargins(2, 0, 0, 5)  # small bottom gap for the whole block
+        schedule_layout.setSpacing(0)
         self.cb_day = QtWidgets.QCheckBox(_("Daily at 03:00"))
         self.cb_week = QtWidgets.QCheckBox(_("Weekly (Mon at 03:00)"))
         self.cb_logon = QtWidgets.QCheckBox(_("On logon"))
         self.cb_idle = QtWidgets.QCheckBox(_("On idle (20 min)"))
         self.cb_unlock = QtWidgets.QCheckBox(_("On unlock"))
+        _cb_style = (
+            "QCheckBox { margin: 4px; margin-left: 6px; padding: 0px; } "
+            "QCheckBox::indicator { margin: 0px 4px 0px 0px; padding: 0px; }"
+        )
         for cb in (self.cb_day, self.cb_week, self.cb_logon, self.cb_idle, self.cb_unlock):
+            cb.setStyleSheet(_cb_style)
             schedule_layout.addWidget(cb)
         self.schedule_controls = {
             "daily": self.cb_day,
@@ -83,14 +123,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         behavior_group = QtWidgets.QGroupBox(_("Background run"))
         behavior_layout = QtWidgets.QVBoxLayout(behavior_group)
+        behavior_layout.setContentsMargins(2, 0, 0, 5)  # small bottom gap for the whole block
+        behavior_layout.setSpacing(0)
         self.chk_wait = QtWidgets.QCheckBox(_("Wait before closing console window"))
         self.chk_console = QtWidgets.QCheckBox(_("Show console progress"))
         self.chk_tray = QtWidgets.QCheckBox(_("Show tray icon while backing up"))
         self.chk_overlay = QtWidgets.QCheckBox(_("Show floating bubble when finished"))
-        behavior_layout.addWidget(self.chk_wait)
-        behavior_layout.addWidget(self.chk_console)
-        behavior_layout.addWidget(self.chk_tray)
-        behavior_layout.addWidget(self.chk_overlay)
+        for cb in (self.chk_wait, self.chk_console, self.chk_tray, self.chk_overlay):
+            cb.setStyleSheet(_cb_style)
+            behavior_layout.addWidget(cb)
         self.lbl_last_success = QtWidgets.QLabel()
 
         self.status_label = QtWidgets.QLabel()
@@ -123,7 +164,7 @@ class MainWindow(QtWidgets.QMainWindow):
         grid = QtWidgets.QGridLayout(cw)
         grid.addLayout(target_layout, 0, 0, 1, 2)
         grid.addLayout(src_layout, 1, 0)
-        grid.addLayout(excl_layout, 1, 1, 9, 1)
+        grid.addLayout(excl_layout, 1, 1, 8, 1)
         grid.addWidget(schedule_group, 2, 0)
         grid.addWidget(behavior_group, 3, 0)
         grid.addLayout(action_layout, 4, 0)
@@ -131,7 +172,7 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(self.lbl_last_success, 6, 0)
         grid.addWidget(self.progress_bar, 7, 0)
         grid.addWidget(self.txt_log, 8, 0)
-        grid.setRowStretch(1, 1)
+        grid.setRowStretch(1, 2)
         grid.setRowStretch(7, 1)
         grid.setRowStretch(8, 3)
         grid.setColumnStretch(0, 5)

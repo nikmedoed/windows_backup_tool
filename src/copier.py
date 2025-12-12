@@ -73,8 +73,43 @@ def run_backup(
             notify_user(_("Backup error"), message, icon=0x00000010)
         return False
 
+    def _path_available(path: Path) -> bool:
+        """
+        Returns True if the path or its anchor exists (helps with removable drives).
+        """
+        anchor = Path(path.anchor) if path.anchor else path
+        try:
+            return path.exists() or anchor.exists()
+        except OSError:
+            return False
+
+    def _wait_for_target(path: Path, timeout: float = 30.0) -> tuple[bool, bool]:
+        """
+        Wait for the target location to become available, up to timeout seconds.
+        Returns (available, waited).
+        """
+        start = time.monotonic()
+        notified = False
+        while time.monotonic() - start <= timeout:
+            if _path_available(path):
+                return True, notified
+            if not notified:
+                _log(_("⌛ Waiting for target location to become available (up to {sec}s)…")
+                     .format(sec=int(timeout)))
+                notified = True
+            time.sleep(1.5)
+        return _path_available(path), notified
+
     _log(_("🔍 Starting backup…"))
     tgt_root = Path(cfg.target_dir).expanduser().resolve()
+    target_ready, was_waiting = _wait_for_target(tgt_root)
+    if not target_ready:
+        msg = _("Target \"{0}\" is not available").format(tgt_root)
+        _log(_("❌ {msg}").format(msg=msg), is_error=True)
+        return _finalize(False, msg)
+    if was_waiting:
+        _log(_("✅ Target is now available: {0}").format(tgt_root))
+
     if tgt_root.exists():
         if not tgt_root.is_dir():
             _log(_("❌ Target path \"{0}\" exists but is not a directory").format(tgt_root), is_error=True)
