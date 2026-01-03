@@ -10,7 +10,7 @@ from typing import Callable, Optional
 
 from src.i18n import _
 from .config import Settings
-from .utils import copy2, same_file, iter_files, notify_user
+from .utils import copy2, same_file, iter_files, notify_user, DebugLog
 
 
 @dataclass
@@ -40,6 +40,8 @@ def run_backup(
         progress_cb: Optional[Callable[[int, int], None]] = None,
         log_cb: Optional[Callable[[str], None]] = None,
         use_hash: bool = False,
+        debug: bool = False,
+        debug_path: Optional[str] = None,
 ) -> bool:
     stats = Stats()
 
@@ -100,115 +102,124 @@ def run_backup(
             time.sleep(1.5)
         return _path_available(path), notified
 
-    _log(_("🔍 Starting backup…"))
-    tgt_root = Path(cfg.target_dir).expanduser().resolve()
-    target_ready, was_waiting = _wait_for_target(tgt_root)
-    if not target_ready:
-        msg = _("Target \"{0}\" is not available").format(tgt_root)
-        _log(_("❌ {msg}").format(msg=msg), is_error=True)
-        return _finalize(False, msg)
-    if was_waiting:
-        _log(_("✅ Target is now available: {0}").format(tgt_root))
-
-    if tgt_root.exists():
-        if not tgt_root.is_dir():
-            _log(_("❌ Target path \"{0}\" exists but is not a directory").format(tgt_root), is_error=True)
-            return _finalize(False, _("Target path \"{0}\" is not a directory").format(tgt_root))
-    else:
-        try:
-            tgt_root.mkdir(parents=True, exist_ok=True)
-            _log(_("📁 Created target directory {0}").format(tgt_root))
-        except Exception as e:
-            _log(_("❌ Could not create target directory \"{0}\": {1}").format(tgt_root, e), is_error=True)
-            return _finalize(False, _("Could not create target directory \"{0}\"").format(tgt_root))
+    dbg = DebugLog(enabled=debug, path=debug_path)
+    if dbg.error:
+        _log(_("⚠️ Debug log disabled: {err}").format(err=dbg.error))
+    elif dbg.enabled and dbg.path:
+        _log(_("🐞 Debug log: {path}").format(path=dbg.path))
 
     try:
-        from tqdm import tqdm
-    except ImportError:
-        tqdm = None
+        _log(_("🔍 Starting backup…"))
+        tgt_root = Path(cfg.target_dir).expanduser().resolve()
+        target_ready, was_waiting = _wait_for_target(tgt_root)
+        if not target_ready:
+            msg = _("Target \"{0}\" is not available").format(tgt_root)
+            _log(_("❌ {msg}").format(msg=msg), is_error=True)
+            return _finalize(False, msg)
+        if was_waiting:
+            _log(_("✅ Target is now available: {0}").format(tgt_root))
 
-    use_tqdm = (tqdm is not None and progress_cb is None and log_cb is None)
-
-    _log(_("📂 Scanning files…"))
-    all_files = [f for rule in cfg.sources for f in iter_files(rule)]
-    stats.scanned = len(all_files)
-
-    def _pause_console():
-        if stats.errors:
-            input(_("\n⚠️ Backup finished with errors. Press Enter to exit…"))
-        elif cfg.wait_on_finish:
-            print(_("\n✅ Backup completed successfully. Window will close in 10 seconds…"))
-            time.sleep(10)
-
-    if progress_cb is None and log_cb is None and cfg.wait_on_finish:
-        atexit.register(_pause_console)
-    tasks: list[tuple[Path, Path]] = []
-
-    _log(_("🛠 Analyzing files on changes…"))
-    iterator = (tqdm(all_files, desc=_("Analyzing…"), unit="file")
-                if use_tqdm else all_files)
-
-    for idx, src in enumerate(iterator, start=1):
-        dst = tgt_root / src.drive.rstrip(":") / src.relative_to(src.anchor)
-        if same_file(src, dst, use_hash):
-            stats.inc("unchanged")
+        if tgt_root.exists():
+            if not tgt_root.is_dir():
+                _log(_("❌ Target path \"{0}\" exists but is not a directory").format(tgt_root), is_error=True)
+                return _finalize(False, _("Target path \"{0}\" is not a directory").format(tgt_root))
         else:
-            tasks.append((src, dst))
-        if not use_tqdm:
-            _prog(idx, stats.scanned)
-    if not use_tqdm and not progress_cb:
-        print()
+            try:
+                tgt_root.mkdir(parents=True, exist_ok=True)
+                _log(_("📁 Created target directory {0}").format(tgt_root))
+            except Exception as e:
+                _log(_("❌ Could not create target directory \"{0}\": {1}").format(tgt_root, e), is_error=True)
+                return _finalize(False, _("Could not create target directory \"{0}\"").format(tgt_root))
 
-    if not tasks:
-        _log(_("✅ No changes detected. Backup not required."))
+        try:
+            from tqdm import tqdm
+        except ImportError:
+            tqdm = None
+
+        use_tqdm = (tqdm is not None and progress_cb is None and log_cb is None)
+
+        _log(_("📂 Scanning files…"))
+        all_files = [f for rule in cfg.sources for f in iter_files(rule, debug_log=dbg.log if dbg.enabled else None)]
+        stats.scanned = len(all_files)
+
+        def _pause_console():
+            if stats.errors:
+                input(_("\n⚠️ Backup finished with errors. Press Enter to exit…"))
+            elif cfg.wait_on_finish:
+                print(_("\n✅ Backup completed successfully. Window will close in 10 seconds…"))
+                time.sleep(10)
+
+        if progress_cb is None and log_cb is None and cfg.wait_on_finish:
+            atexit.register(_pause_console)
+        tasks: list[tuple[Path, Path]] = []
+
+        _log(_("🛠 Analyzing files on changes…"))
+        iterator = (tqdm(all_files, desc=_("Analyzing…"), unit="file")
+                    if use_tqdm else all_files)
+
+        for idx, src in enumerate(iterator, start=1):
+            dst = tgt_root / src.drive.rstrip(":") / src.relative_to(src.anchor)
+            if same_file(src, dst, use_hash):
+                stats.inc("unchanged")
+            else:
+                tasks.append((src, dst))
+            if not use_tqdm:
+                _prog(idx, stats.scanned)
+        if not use_tqdm and not progress_cb:
+            print()
+
+        if not tasks:
+            _log(_("✅ No changes detected. Backup not required."))
+            _log(stats.summary())
+            if progress_cb:
+                progress_cb(0, 0)
+            return _finalize(True)
+        _log(_("▶ {tasks} files to copy, {unchanged} unchanged")
+             .format(tasks=len(tasks), unchanged=stats.unchanged))
+
+        done = 0
+        max_workers = min(8, (os.cpu_count() or 4) * 2)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(copy2, src, dst): (src, dst) for src, dst in tasks}
+
+            if use_tqdm:
+                copy_iter = tqdm(
+                    as_completed(futures),
+                    total=len(tasks),
+                    desc=_("Copying…"),
+                    unit="file"
+                )
+            else:
+                copy_iter = as_completed(futures)
+
+            for future in copy_iter:
+                src, dst = futures[future]
+                try:
+                    future.result()
+                    stats.inc("copied")
+                except Exception as exc:
+                    stats.inc("errors")
+                    _log(_("❗ Error copying {src} → {dst} ({exc})").format(
+                        src=src, dst=dst, exc=exc), is_error=True)
+                done += 1
+                if not use_tqdm:
+                    _prog(done, len(tasks))
+
         _log(stats.summary())
         if progress_cb:
-            progress_cb(0, 0)
+            progress_cb(len(tasks), len(tasks))
+
+        if stats.errors:
+            desktop = Path.home() / "Desktop"
+            desktop.mkdir(exist_ok=True)
+            fname = desktop / f"backup_errors_{datetime.now():%Y%m%d_%H%M%S}.log"
+            if progress_cb is None and log_cb is None:
+                content = "\n".join(error_messages) if error_messages else _("No error details captured.")
+                fname.write_text(content, encoding="utf-8")
+                _log(_("⚠️ Errors logged in: {0}").format(fname), is_error=True)
+                return _finalize(False, _("Backup finished with errors. See {0}").format(fname))
+            return _finalize(False, _("Backup finished with errors."))
+
         return _finalize(True)
-    _log(_("▶ {tasks} files to copy, {unchanged} unchanged")
-         .format(tasks=len(tasks), unchanged=stats.unchanged))
-
-    done = 0
-    max_workers = min(8, (os.cpu_count() or 4) * 2)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(copy2, src, dst): (src, dst) for src, dst in tasks}
-
-        if use_tqdm:
-            copy_iter = tqdm(
-                as_completed(futures),
-                total=len(tasks),
-                desc=_("Copying…"),
-                unit="file"
-            )
-        else:
-            copy_iter = as_completed(futures)
-
-        for future in copy_iter:
-            src, dst = futures[future]
-            try:
-                future.result()
-                stats.inc("copied")
-            except Exception as exc:
-                stats.inc("errors")
-                _log(_("❗ Error copying {src} → {dst} ({exc})").format(
-                    src=src, dst=dst, exc=exc), is_error=True)
-            done += 1
-            if not use_tqdm:
-                _prog(done, len(tasks))
-
-    _log(stats.summary())
-    if progress_cb:
-        progress_cb(len(tasks), len(tasks))
-
-    if stats.errors:
-        desktop = Path.home() / "Desktop"
-        desktop.mkdir(exist_ok=True)
-        fname = desktop / f"backup_errors_{datetime.now():%Y%m%d_%H%M%S}.log"
-        if progress_cb is None and log_cb is None:
-            content = "\n".join(error_messages) if error_messages else _("No error details captured.")
-            fname.write_text(content, encoding="utf-8")
-            _log(_("⚠️ Errors logged in: {0}").format(fname), is_error=True)
-            return _finalize(False, _("Backup finished with errors. See {0}").format(fname))
-        return _finalize(False, _("Backup finished with errors."))
-
-    return _finalize(True)
+    finally:
+        dbg.close()

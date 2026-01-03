@@ -5,10 +5,10 @@ import math
 import os
 import shutil
 import sys
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Final
-from typing import Iterable
+from typing import Callable, Final, Iterable, Optional
 
 from src.config import PathRule
 
@@ -80,34 +80,135 @@ def human_readable(size: int) -> str:
     return f"{size:.2f} PB"
 
 
-def iter_files(rule: PathRule) -> Iterable[Path]:
+def iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = None) -> Iterable[Path]:
     """
     Generate all files under rule.source, excluding any paths in rule.excludes.
+    If debug_log is provided, emit short traversal notes.
     """
+    return _iter_files(rule, debug_log=debug_log)
+
+
+class DebugLog:
+    """Simple debug logger that writes short, structured notes to a file."""
+
+    def __init__(self, enabled: bool = False, path: Optional[str | Path] = None):
+        self.enabled = enabled
+        self.path: Optional[Path] = None
+        self._fh: Optional[io.TextIOBase] = None
+        self.error: Optional[str] = None
+        if not enabled:
+            return
+
+        target = self._resolve_path(path)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = target.open("w", encoding="utf-8", buffering=1)
+        except OSError as exc:
+            # Give up, report error to caller
+            self.enabled = False
+            self.error = f"Cannot open debug log at {target}: {exc}"
+            return
+
+        self.path = target
+        self.log(f"# Backup debug log @ {datetime.now():%Y-%m-%d %H:%M:%S}")
+
+    def _resolve_path(self, override: Optional[str | Path]) -> Path:
+        if override:
+            return Path(override).expanduser().resolve()
+
+        # Always Desktop by default (user-visible)
+        desktop = Path.home() / "Desktop"
+        return desktop / f"backup_debug_{datetime.now():%Y%m%d_%H%M%S}.log"
+
+    def log(self, message: str) -> None:
+        if not self.enabled or not self._fh:
+            return
+        self._fh.write(message + "\n")
+
+    def close(self) -> None:
+        if self._fh:
+            try:
+                self._fh.close()
+            finally:
+                self._fh = None
+
+
+def _iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = None) -> Iterable[Path]:
+    def _emit(event: str, detail: str) -> None:
+        if debug_log:
+            debug_log(f"{event}: {detail}")
+
+    def _is_link(path: Path, entry: Optional[os.DirEntry] = None) -> bool:
+        if os.name != "nt":
+            if entry is not None:
+                try:
+                    return entry.is_symlink()
+                except OSError:
+                    return False
+            return path.is_symlink()
+        try:
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+            if attrs == -1:
+                return False
+            return bool(attrs & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+        except Exception:
+            if entry is not None:
+                try:
+                    return entry.is_symlink()
+                except OSError:
+                    return False
+            return path.is_symlink()
+
     root = Path(rule.source).expanduser().resolve()
     if not root.exists():
+        _emit("RULE_MISSING", str(root))
         return
 
-    excluded = [(root / Path(e)).resolve() for e in rule.excludes]
+    excluded_raw = [(root / Path(e)).absolute() for e in rule.excludes]
+    excluded: list[Path] = []
+    for ex in excluded_raw:
+        if _is_link(ex):
+            continue
+        excluded.append(ex)
 
     def _skip(p: Path) -> bool:
         return any(p.is_relative_to(ex) for ex in excluded)
+
+    def _fmt(p: Path) -> str:
+        try:
+            return str(p.relative_to(root)) or "."
+        except ValueError:
+            return str(p)
+
+    _emit("RULE", str(root))
+    if excluded:
+        _emit("EXCLUDES", ", ".join(_fmt(e) for e in excluded))
+    else:
+        _emit("EXCLUDES", "-")
 
     stack = [root]
     while stack:
         cur = stack.pop()
         if _skip(cur):
+            _emit("SKIP_EXCLUDED", _fmt(cur))
             continue
+        _emit("ENTER", _fmt(cur))
         try:
             with os.scandir(cur) as it:
                 for entry in it:
                     path = Path(entry.path)
+                    if _is_link(path, entry):
+                        _emit("SKIP_LINK", _fmt(path))
+                        continue
                     if entry.is_dir(follow_symlinks=False):
+                        if _skip(path):
+                            _emit("SKIP_EXCLUDED", _fmt(path))
+                            continue
                         stack.append(path)
                     elif entry.is_file(follow_symlinks=False) and not _skip(path):
                         yield path
-        except (PermissionError, FileNotFoundError):
-            pass
+        except (PermissionError, FileNotFoundError) as exc:
+            _emit("SKIP_INACCESSIBLE", f"{_fmt(cur)} [{type(exc).__name__}]")
 
 
 @lru_cache(maxsize=None)

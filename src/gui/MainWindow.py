@@ -1,5 +1,6 @@
 import threading
 from datetime import datetime
+from typing import Optional
 
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtWidgets import QSizePolicy
@@ -25,10 +26,12 @@ class MainWindow(QtWidgets.QMainWindow):
     logAppended = QtCore.Signal(str)
     backupFinished = QtCore.Signal(bool)
 
-    def __init__(self):
+    def __init__(self, *, debug: bool = False, debug_path: Optional[str] = None):
         super().__init__()
         self.setWindowTitle(_("Backup Tool Settings"))
         self.cfg = Settings.load() or Settings(target_dir="")
+        self._debug = debug
+        self._debug_path = debug_path
         self._build_ui()
         self.progressChanged.connect(self._handle_progress)
         self.logAppended.connect(self.txt_log.append)
@@ -288,7 +291,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_label.setText(_("Backing up…"))
         self.btn_run.setEnabled(False)
         def _job():
-            success = run_backup(self.cfg, self.progressChanged.emit, self.logAppended.emit)
+            success = run_backup(
+                self.cfg,
+                self.progressChanged.emit,
+                self.logAppended.emit,
+                debug=self._debug,
+                debug_path=self._debug_path if isinstance(self._debug_path, str) else None,
+            )
             self.backupFinished.emit(success)
         threading.Thread(target=_job, daemon=True).start()
 

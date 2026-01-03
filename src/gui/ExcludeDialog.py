@@ -106,15 +106,19 @@ class ExcludeDialog(QtWidgets.QDialog):
 
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            parent.takeChildren()
-            with os.scandir(path) as it:
-                for entry in it:
-                    child = self._make_item(
-                        entry.name,
-                        Path(entry.path),
-                        entry.is_dir(follow_symlinks=False)
-                    )
-                    parent.addChild(child)
+            with QtCore.QSignalBlocker(self.tree):
+                parent.takeChildren()
+                parent_state = parent.checkState(0)
+                with os.scandir(path) as it:
+                    for entry in it:
+                        child = self._make_item(
+                            entry.name,
+                            Path(entry.path),
+                            entry.is_dir(follow_symlinks=False)
+                        )
+                        if parent_state != QtCore.Qt.PartiallyChecked:
+                            child.setCheckState(0, parent_state)
+                        parent.addChild(child)
         except PermissionError:
             pass
         finally:
@@ -125,7 +129,9 @@ class ExcludeDialog(QtWidgets.QDialog):
         self._load_children(item)
 
     def _set_state(self, state):
-        self._set_state_rec(self.tree.invisibleRootItem(), state)
+        with QtCore.QSignalBlocker(self.tree):
+            self._set_state_rec(self.tree.invisibleRootItem(), state)
+        self._update_legend_async()
 
     def _set_state_rec(self, itm, st):
         itm.setCheckState(0, st)
@@ -142,7 +148,6 @@ class ExcludeDialog(QtWidgets.QDialog):
         state = itm.checkState(0)
         if state == QtCore.Qt.PartiallyChecked:
             return
-        self._load_children(itm)
         for i in range(itm.childCount()):
             ch = itm.child(i)
             ch.setCheckState(0, state)
@@ -209,14 +214,14 @@ class ExcludeDialog(QtWidgets.QDialog):
 
     @staticmethod
     def _accumulate_static(itm):
-        from src.utils import dir_size
         st = itm.checkState(0)
         if st == QtCore.Qt.Unchecked:
             return 0, 0
         path = itm.data(0, ExcludeDialog.PATH_ROLE)
         if st == QtCore.Qt.Checked:
-            size = dir_size(path) if path.is_dir() else itm.data(0, ExcludeDialog.SIZE_ROLE)
-            return size, 1
+            size = itm.data(0, ExcludeDialog.SIZE_ROLE) if not path.is_dir() else 0
+            return size or 0, 1
+
         total_sz = total_cnt = 0
         for i in range(itm.childCount()):
             sz, cnt = ExcludeDialog._accumulate_static(itm.child(i))
@@ -254,21 +259,31 @@ class ExcludeDialog(QtWidgets.QDialog):
         for idx, rule in enumerate(self._cfg.sources):
             root_itm = self.tree.topLevelItem(idx)
             sel: List[Path] = []
-            self._collect(root_itm, sel)
+            root_path = Path(rule.source).expanduser().resolve()
+            self._collect_checked(root_itm, sel)
             minimal: List[Path] = []
-            for p in sorted(sel):
+            for p in sorted(sel, key=lambda p: (len(p.parts), str(p).lower())):
                 if not any(p.is_relative_to(m) for m in minimal):
                     minimal.append(p)
-            res[rule.source] = [str(p.relative_to(rule.source)) for p in minimal]
+            res[rule.source] = [str(p.relative_to(root_path)) for p in minimal]
         return res
 
-    def _collect(self, itm, out: List[Path]):
+    def _collect_checked(self, itm, out: List[Path]) -> QtCore.Qt.CheckState:
         st = itm.checkState(0)
-        if st == QtCore.Qt.Unchecked:
-            return
-        p = itm.data(0, self.PATH_ROLE)
-        if st == QtCore.Qt.Checked:
+        p: Path = itm.data(0, self.PATH_ROLE)
+
+        if itm.childCount() == 0:
+            if st == QtCore.Qt.Checked:
+                out.append(p)
+            return st
+
+        child_states = [self._collect_checked(itm.child(i), out) for i in range(itm.childCount())]
+
+        if st == QtCore.Qt.Checked and all(cs == QtCore.Qt.Checked for cs in child_states):
             out.append(p)
-            return
-        for i in range(itm.childCount()):
-            self._collect(itm.child(i), out)
+            return QtCore.Qt.Checked
+
+        if st == QtCore.Qt.Unchecked and all(cs == QtCore.Qt.Unchecked for cs in child_states):
+            return QtCore.Qt.Unchecked
+
+        return QtCore.Qt.PartiallyChecked

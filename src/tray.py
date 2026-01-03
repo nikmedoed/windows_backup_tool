@@ -16,13 +16,20 @@ class _BackupWorker(QtCore.QObject):
     finished = QtCore.Signal(bool)
     progress = QtCore.Signal(int, int)
 
-    def __init__(self, cfg: Settings):
+    def __init__(self, cfg: Settings, debug: bool = False, debug_path: Optional[str] = None):
         super().__init__()
         self._cfg = cfg
+        self._debug = debug
+        self._debug_path = debug_path
 
     @QtCore.Slot()
     def run(self) -> None:
-        success = run_backup(self._cfg, progress_cb=self.progress.emit)
+        success = run_backup(
+            self._cfg,
+            progress_cb=self.progress.emit,
+            debug=self._debug,
+            debug_path=self._debug_path if isinstance(self._debug_path, str) else None,
+        )
         self.finished.emit(success)
 
 class _OverlayBubble(QtWidgets.QWidget):
@@ -230,7 +237,7 @@ def _resolve_base_icon(*, success: Optional[bool] = None) -> QtGui.QIcon:
     return QtGui.QIcon(pix)
 
 
-def run_with_tray(cfg: Settings) -> bool:
+def run_with_tray(cfg: Settings, *, debug: bool = False) -> bool:
     """
     Run backup with a temporary tray icon spinner, suppressing the console window.
     """
@@ -242,7 +249,8 @@ def run_with_tray(cfg: Settings) -> bool:
         install_qt(app)
 
     controller = _TrayController(show_overlay=cfg.show_overlay)
-    worker = _BackupWorker(cfg)
+    debug_path = debug if isinstance(debug, str) else None
+    worker = _BackupWorker(cfg, debug=bool(debug), debug_path=debug_path)
     thread = QtCore.QThread()
     worker.moveToThread(thread)
     thread.started.connect(worker.run)

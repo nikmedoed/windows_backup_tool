@@ -16,6 +16,14 @@ def main() -> None:
         action="store_true",
         help=_("Run in development mode (if elevating, show console window)")
     )
+    p.add_argument(
+        "--debug",
+        nargs="?",
+        const=True,
+        default=False,
+        metavar="[LOG_PATH]",
+        help=_("Enable debug traversal log (optional path)")
+    )
 
     args = p.parse_args()
 
@@ -32,13 +40,13 @@ def main() -> None:
         if cfg.show_tray_icon:
             try:
                 from src.tray import run_with_tray
-                success = run_with_tray(cfg)
+                success = run_with_tray(cfg, debug=args.debug)
             except Exception as exc:
                 print(_("Tray icon mode failed ({exc}). Falling back to console output.")
                       .format(exc=exc))
-                success = run_backup(cfg)
+                success = run_backup(cfg, debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
         else:
-            success = run_backup(cfg)
+            success = run_backup(cfg, debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
         raise SystemExit(0 if success else 1)
     else:
         try:
@@ -50,7 +58,7 @@ def main() -> None:
             pass
         from src.gui import open_gui
         _hide_console()
-        open_gui()
+        open_gui(debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
 
 
 if __name__ == "__main__":

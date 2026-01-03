@@ -71,6 +71,26 @@ Run a backup using saved settings (for Task Scheduler or scripts):
 python main.py --backup
 ```
 
+Create a traversal debug log on the Desktop (timestamped) to inspect which
+folders are entered or skipped:
+
+```bash
+python main.py --backup --debug
+```
+
+When running the GUI, the same flag enables debug logging for the **Run backup**
+button (log is created when the backup starts):
+
+```bash
+python main.py --debug
+```
+
+Optionally provide a custom log path:
+
+```bash
+python main.py --backup --debug "D:\logs\backup_debug.txt"
+```
+
 If the **Show console progress** option is disabled, you can enable **Show tray icon while backing up** in the GUI.  
 This keeps scheduled runs completely silent and instead displays a temporary tray spinner that disappears when the job finishes.  
 To also get a subtle success/error hint, enable **Show floating bubble when finished**—it fades in/out above other windows without stealing focus.
