@@ -1,35 +1,39 @@
 import atexit
 import os
+import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Optional
 
 from src.i18n import _
-from .config import Settings
-from .utils import copy2, same_file, iter_files, notify_user, DebugLog
+from .config import PathRule, Settings
+from .utils import DebugLog, iter_files, notify_user, same_file, sha1
+from .version_store import FileRecord, VersionStore, mirror_relative_for_source, source_roots_for_rules
 
 
 @dataclass
 class Stats:
     scanned: int = 0
     copied: int = 0
+    deleted: int = 0
     unchanged: int = 0
     errors: int = 0
-    _lock: Lock = Lock()
+    _lock: Lock = field(default_factory=Lock)
 
     def inc(self, field: str):
         with self._lock:
             setattr(self, field, getattr(self, field) + 1)
 
     def summary(self) -> str:
-        return _("Scanned: {scanned} | Copied: {copied} | "
+        return _("Scanned: {scanned} | Copied: {copied} | Deleted: {deleted} | "
                  "Unchanged: {unchanged} | Errors: {errors}").format(
             scanned=self.scanned,
             copied=self.copied,
+            deleted=self.deleted,
             unchanged=self.unchanged,
             errors=self.errors
         )
@@ -39,13 +43,15 @@ def run_backup(
         cfg: Settings,
         progress_cb: Optional[Callable[[int, int], None]] = None,
         log_cb: Optional[Callable[[str], None]] = None,
-        use_hash: bool = False,
+        use_hash: bool = True,
         debug: bool = False,
         debug_path: Optional[str] = None,
 ) -> bool:
     stats = Stats()
 
     error_messages: list[str] = []
+    store: Optional[VersionStore] = None
+    run_id: Optional[int] = None
 
     def _log(msg: str, *, is_error: bool = False) -> None:
         if is_error:
@@ -67,8 +73,33 @@ def run_backup(
         cfg.last_success = ts
         Settings.patch(last_success=ts)
 
+    def _apply_retention() -> None:
+        keep = getattr(cfg, "retention_keep_successful_runs", 0)
+        if not keep or store is None:
+            return
+        try:
+            result = store.prune_successful_runs(keep)
+        except Exception as exc:
+            _log(_("⚠️ Could not prune old backup versions: {exc}").format(exc=exc), is_error=True)
+            return
+        if result.deleted_run_ids:
+            _log(
+                _("🧹 Removed old backup versions: {runs}; freed {bytes} bytes in {files} files").format(
+                    runs=", ".join(str(run_id) for run_id in result.deleted_run_ids),
+                    bytes=result.freed_bytes,
+                    files=result.deleted_file_count,
+                )
+            )
+
     def _finalize(success: bool, message: Optional[str] = None) -> bool:
+        if store is not None and run_id is not None:
+            try:
+                store.finish_run(run_id, success)
+            except Exception as exc:
+                _log(_("⚠️ Could not update version index: {exc}").format(exc=exc), is_error=True)
+                success = False
         if success:
+            _apply_retention()
             _mark_success()
             return True
         if message:
@@ -131,6 +162,8 @@ def run_backup(
                 _log(_("❌ Could not create target directory \"{0}\": {1}").format(tgt_root, e), is_error=True)
                 return _finalize(False, _("Could not create target directory \"{0}\"").format(tgt_root))
 
+        store = VersionStore(tgt_root)
+
         try:
             from tqdm import tqdm
         except ImportError:
@@ -139,8 +172,23 @@ def run_backup(
         use_tqdm = (tqdm is not None and progress_cb is None and log_cb is None)
 
         _log(_("📂 Scanning files…"))
-        all_files = [f for rule in cfg.sources for f in iter_files(rule, debug_log=dbg.log if dbg.enabled else None)]
-        stats.scanned = len(all_files)
+        all_items: list[tuple[Path, Path]] = []
+        scanned_keys: set[str] = set()
+        for rule in cfg.sources:
+            source_root = Path(rule.source).expanduser().resolve()
+            effective_rule = _rule_without_backup_target(rule, source_root, tgt_root, dbg=dbg)
+            for file_path in iter_files(effective_rule, debug_log=dbg.log if dbg.enabled else None):
+                key = _path_key(file_path)
+                if key in scanned_keys:
+                    if dbg.enabled:
+                        dbg.log(f"DUPLICATE_SOURCE_FILE: {file_path}")
+                    continue
+                scanned_keys.add(key)
+                all_items.append((file_path, source_root))
+        stats.scanned = len(all_items)
+        scanned_sources = {_path_key(src) for src, _ in all_items}
+        indexed_files = {_path_key(Path(record.source_path)): record for record in store.list_files()}
+        successful_run_ids = store.successful_run_ids()
 
         def _pause_console():
             if stats.errors:
@@ -151,36 +199,86 @@ def run_backup(
 
         if progress_cb is None and log_cb is None and cfg.wait_on_finish:
             atexit.register(_pause_console)
-        tasks: list[tuple[Path, Path]] = []
+        unchanged_items: list[tuple[Path, Path, Path, Path, Optional[str], bool]] = []
+        index_update_items: list[tuple[Path, Path, Path, Path, Optional[str], bool]] = []
+        tasks: list[tuple[Path, Path, Path, Path]] = []
+        delete_tasks: list[tuple[FileRecord, Path]] = []
 
         _log(_("🛠 Analyzing files on changes…"))
-        iterator = (tqdm(all_files, desc=_("Analyzing…"), unit="file")
-                    if use_tqdm else all_files)
+        iterator = (tqdm(all_items, desc=_("Analyzing…"), unit="file")
+                    if use_tqdm else all_items)
 
-        for idx, src in enumerate(iterator, start=1):
-            dst = tgt_root / src.drive.rstrip(":") / src.relative_to(src.anchor)
-            if same_file(src, dst, use_hash):
+        for idx, (src, source_root) in enumerate(iterator, start=1):
+            mirror_rel = mirror_relative_for_source(src)
+            dst = tgt_root / mirror_rel
+            record = indexed_files.get(_path_key(src))
+            is_same, content_hash = _same_indexed_file(src, dst, record, use_hash)
+            if is_same:
                 stats.inc("unchanged")
+                force_version = _needs_successful_version(record, successful_run_ids)
+                item = (src, source_root, mirror_rel, dst, content_hash, force_version)
+                unchanged_items.append(item)
+                if record is None or record.state != "present" or record.current_hash is None or force_version:
+                    index_update_items.append(item)
             else:
-                tasks.append((src, dst))
+                tasks.append((src, source_root, mirror_rel, dst))
             if not use_tqdm:
                 _prog(idx, stats.scanned)
         if not use_tqdm and not progress_cb:
             print()
 
-        if not tasks:
+        configured_roots = source_roots_for_rules(cfg.sources)
+        for record in store.list_present_files():
+            source = Path(record.source_path)
+            if _path_key(source) in scanned_sources:
+                continue
+            if not _belongs_to_roots(source, configured_roots):
+                continue
+            if _source_still_in_active_scope(source, cfg.sources):
+                continue
+            delete_tasks.append((record, tgt_root / Path(record.mirror_rel)))
+
+        if not tasks and not delete_tasks and not index_update_items:
             _log(_("✅ No changes detected. Backup not required."))
             _log(stats.summary())
             if progress_cb:
                 progress_cb(0, 0)
             return _finalize(True)
-        _log(_("▶ {tasks} files to copy, {unchanged} unchanged")
-             .format(tasks=len(tasks), unchanged=stats.unchanged))
+
+        run_id = store.begin_run()
+        for src, source_root, mirror_rel, dst, content_hash, force_version in index_update_items:
+            try:
+                store.record_seen(
+                    src,
+                    source_root,
+                    mirror_rel,
+                    dst,
+                    run_id,
+                    content_hash=content_hash,
+                    force_version=force_version,
+                )
+            except Exception as exc:
+                stats.inc("errors")
+                _log(_("❗ Error updating version index for {src} ({exc})").format(
+                    src=src, exc=exc), is_error=True)
+        _log(_("▶ {tasks} files to copy, {deleted} files to delete, {unchanged} unchanged")
+             .format(tasks=len(tasks), deleted=len(delete_tasks), unchanged=stats.unchanged))
 
         done = 0
         max_workers = min(8, (os.cpu_count() or 4) * 2)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(copy2, src, dst): (src, dst) for src, dst in tasks}
+            futures = {
+                executor.submit(
+                    _copy_versioned,
+                    store,
+                    run_id,
+                    src,
+                    source_root,
+                    mirror_rel,
+                    dst,
+                ): (src, dst)
+                for src, source_root, mirror_rel, dst in tasks
+            }
 
             if use_tqdm:
                 copy_iter = tqdm(
@@ -203,11 +301,26 @@ def run_backup(
                         src=src, dst=dst, exc=exc), is_error=True)
                 done += 1
                 if not use_tqdm:
-                    _prog(done, len(tasks))
+                    _prog(done, len(tasks) + len(delete_tasks))
+
+        for record, dst in delete_tasks:
+            try:
+                archived_rel = store.prepare_archive_current(record.source_path, dst, run_id)
+                if dst.exists():
+                    dst.unlink()
+                store.record_deleted(record, run_id, archived_rel)
+                stats.inc("deleted")
+            except Exception as exc:
+                stats.inc("errors")
+                _log(_("❗ Error deleting {dst} ({exc})").format(dst=dst, exc=exc), is_error=True)
+            done += 1
+            if not use_tqdm:
+                _prog(done, len(tasks) + len(delete_tasks))
 
         _log(stats.summary())
         if progress_cb:
-            progress_cb(len(tasks), len(tasks))
+            total_work = len(tasks) + len(delete_tasks)
+            progress_cb(total_work, total_work)
 
         if stats.errors:
             desktop = Path.home() / "Desktop"
@@ -222,4 +335,146 @@ def run_backup(
 
         return _finalize(True)
     finally:
+        if store is not None:
+            store.close()
         dbg.close()
+
+
+def _copy_versioned(
+        store: VersionStore,
+        run_id: int,
+        src: Path,
+        source_root: Path,
+        mirror_rel: Path,
+        dst: Path,
+) -> None:
+    source_path = str(src.expanduser().resolve())
+    archived_rel = store.prepare_archive_current(source_path, dst, run_id) if dst.exists() else None
+    content_hash = sha1(src)
+    _copy2_atomic(src, dst)
+    store.record_copied(src, source_root, mirror_rel, dst, run_id, archived_rel, content_hash=content_hash)
+
+
+def _copy2_atomic(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.parent / f".{dst.name}.backup_tmp_{os.getpid()}_{time.time_ns()}"
+    try:
+        shutil.copy2(src, tmp, follow_symlinks=False)
+        os.replace(tmp, dst)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
+def _same_indexed_file(
+        src: Path,
+        dst: Path,
+        record: Optional[FileRecord],
+        use_hash: bool,
+) -> tuple[bool, Optional[str]]:
+    if not use_hash:
+        return same_file(src, dst, use_hash=False), None
+    if record is None or record.state != "present" or not record.current_hash:
+        if not dst.exists():
+            return False, None
+        try:
+            src_stat = src.stat()
+            dst_stat = dst.stat()
+        except OSError:
+            return False, None
+        if src_stat.st_size != dst_stat.st_size:
+            return False, None
+        content_hash = sha1(src)
+        return content_hash == sha1(dst), content_hash
+    if not dst.exists():
+        return False, None
+    try:
+        src_stat = src.stat()
+        dst_stat = dst.stat()
+    except OSError:
+        return False, None
+    if src_stat.st_size != record.current_size or dst_stat.st_size != record.current_size:
+        return False, None
+    content_hash = sha1(src)
+    return content_hash == record.current_hash, content_hash
+
+
+def _needs_successful_version(record: Optional[FileRecord], successful_run_ids: set[int]) -> bool:
+    if record is None or record.state != "present":
+        return False
+    if record.last_seen_run_id is None:
+        return True
+    return int(record.last_seen_run_id) not in successful_run_ids
+
+
+def _rule_without_backup_target(rule: PathRule, source_root: Path, target_root: Path, *, dbg: DebugLog) -> PathRule:
+    try:
+        rel = target_root.relative_to(source_root)
+    except ValueError:
+        return rule
+    rel_s = str(rel) if str(rel) else "."
+    excludes = list(rule.excludes)
+    if rel_s not in excludes:
+        excludes.append(rel_s)
+    if dbg.enabled:
+        dbg.log(f"SKIP_BACKUP_TARGET_UNDER_SOURCE: {target_root}")
+    return PathRule(source=rule.source, excludes=excludes)
+
+
+def _belongs_to_roots(path: Path, roots: list[Path]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    for root in roots:
+        try:
+            if resolved == root or resolved.is_relative_to(root):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _path_key(path: Path) -> str:
+    try:
+        return str(path.expanduser().resolve()).casefold()
+    except OSError:
+        return str(path).casefold()
+
+
+def _source_still_in_active_scope(path: Path, sources: list[object]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        return False
+    if not resolved.is_file():
+        return False
+    for rule in sources:
+        source = getattr(rule, "source", None)
+        if not source:
+            continue
+        try:
+            root = Path(source).expanduser().resolve()
+        except OSError:
+            continue
+        if not _same_or_child(resolved, root):
+            continue
+        excludes = getattr(rule, "excludes", [])
+        excluded = False
+        for exclude in excludes:
+            exclude_path = (root / Path(exclude)).expanduser().resolve()
+            if _same_or_child(resolved, exclude_path):
+                excluded = True
+                break
+        if not excluded:
+            return True
+    return False
+
+
+def _same_or_child(path: Path, root: Path) -> bool:
+    path_s = str(path).rstrip("\\/").casefold()
+    root_s = str(root).rstrip("\\/").casefold()
+    return path_s == root_s or path_s.startswith(root_s + "\\") or path_s.startswith(root_s + "/")

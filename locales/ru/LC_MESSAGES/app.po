@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: muromcevn@gmail.com\n"
-"POT-Creation-Date: 2025-04-29 21:54+0400\n"
+"POT-Creation-Date: 2026-05-03 22:00+0400\n"
 "PO-Revision-Date: 2025-04-28 16:12+0400\n"
 "Last-Translator: Nikita Muromtsev <muromcevn@gmail.com>\n"
 "Language: ru\n"
@@ -32,47 +32,105 @@ msgstr "Запуск копирования по сохранённой конф
 msgid "Run in development mode (if elevating, show console window)"
 msgstr "Запуск в режиме разработки (при повышении прав показывать консоль)"
 
-#: main.py:27
+#: main.py:25
+msgid "Enable debug traversal log (optional path)"
+msgstr "Включить отладочный лог обхода (необязательный путь)"
+
+#: main.py:36
 msgid "No saved configuration, run GUI first."
 msgstr "Конфигурация не найдена, запустите графический интерфейс."
 
-#: src/copier.py:29
+#: main.py:45
+#, python-brace-format
+msgid "Tray icon mode failed ({exc}). Falling back to console output."
+msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
+
+#: src/copier.py:32
 #, python-brace-format
 msgid ""
-"Scanned: {scanned} | Copied: {copied} | Unchanged: {unchanged} | Errors: "
-"{errors}"
+"Scanned: {scanned} | Copied: {copied} | Deleted: {deleted} | Unchanged: "
+"{unchanged} | Errors: {errors}"
 msgstr ""
-"Просканировано: {scanned} | Скопировано: {copied} | Без изменений: "
-"{unchanged} | Ошибок: {errors}"
+"Просканировано: {scanned} | Скопировано: {copied} | Удалено: {deleted} | "
+"Без изменений: {unchanged} | Ошибок: {errors}"
 
-#: src/copier.py:55
+#: src/copier.py:69
 msgid "Progress"
 msgstr "Ход выполнения"
 
-#: src/copier.py:57
+#: src/copier.py:81
+#, python-brace-format
+msgid "⚠️ Could not update version index: {exc}"
+msgstr "⚠️ Не удалось обновить индекс версий: {exc}"
+
+#: src/copier.py:87
+msgid "Backup error"
+msgstr "Ошибка бэкапа"
+
+#: src/copier.py:111
+#, python-brace-format
+msgid "⌛ Waiting for target location to become available (up to {sec}s)…"
+msgstr "⌛ Ожидание доступности папки назначения (до {sec} с)…"
+
+#: src/copier.py:119
+#, python-brace-format
+msgid "⚠️ Debug log disabled: {err}"
+msgstr "⚠️ Отладочный лог отключён: {err}"
+
+#: src/copier.py:121
+#, python-brace-format
+msgid "🐞 Debug log: {path}"
+msgstr "🐞 Отладочный лог: {path}"
+
+#: src/copier.py:124
 msgid "🔍 Starting backup…"
 msgstr "🔍 Начинается копирование…"
 
-#: src/copier.py:61
+#: src/copier.py:128
+#, python-brace-format
+msgid "Target \"{0}\" is not available"
+msgstr "Папка назначения \"{0}\" недоступна"
+
+#: src/copier.py:129
+#, python-brace-format
+msgid "❌ {msg}"
+msgstr "❌ {msg}"
+
+#: src/copier.py:132
+#, python-brace-format
+msgid "✅ Target is now available: {0}"
+msgstr "✅ Папка назначения теперь доступна: {0}"
+
+#: src/copier.py:136
 #, python-brace-format
 msgid "❌ Target path \"{0}\" exists but is not a directory"
 msgstr "❌ Путь \"{0}\" существует, но это не папка"
 
-#: src/copier.py:66
+#: src/copier.py:137
+#, python-brace-format
+msgid "Target path \"{0}\" is not a directory"
+msgstr "Путь назначения \"{0}\" не является папкой"
+
+#: src/copier.py:141
 #, python-brace-format
 msgid "📁 Created target directory {0}"
 msgstr "📁 Создана папка назначения {0}"
 
-#: src/copier.py:68
+#: src/copier.py:143
 #, python-brace-format
 msgid "❌ Could not create target directory \"{0}\": {1}"
 msgstr "❌ Не удалось создать папку \"{0}\": {1}"
 
-#: src/copier.py:78
+#: src/copier.py:144
+#, python-brace-format
+msgid "Could not create target directory \"{0}\""
+msgstr "Не удалось создать папку назначения \"{0}\""
+
+#: src/copier.py:156
 msgid "📂 Scanning files…"
 msgstr "📂 Сканирование файлов…"
 
-#: src/copier.py:84
+#: src/copier.py:169
 msgid ""
 "\n"
 "⚠️ Backup finished with errors. Press Enter to exit…"
@@ -80,7 +138,7 @@ msgstr ""
 "\n"
 "⚠️ Копирование завершено с ошибками. Нажмите Enter для выхода…"
 
-#: src/copier.py:86
+#: src/copier.py:171
 msgid ""
 "\n"
 "✅ Backup completed successfully. Window will close in 10 seconds…"
@@ -88,39 +146,84 @@ msgstr ""
 "\n"
 "✅ Копирование успешно завершено. Окно закроется через 10 секунд…"
 
-#: src/copier.py:93
+#: src/copier.py:179
 msgid "🛠 Analyzing files on changes…"
 msgstr "🛠 Анализ изменений…"
 
-#: src/copier.py:94
+#: src/copier.py:180
 msgid "Analyzing…"
 msgstr "Анализ…"
 
-#: src/copier.py:109
+#: src/copier.py:208
 msgid "✅ No changes detected. Backup not required."
 msgstr "✅ Изменений нет. Копирование не требуется."
 
-#: src/copier.py:114
+#: src/copier.py:213
 #, python-brace-format
-msgid "▶ {tasks} files to copy, {unchanged} unchanged"
-msgstr "▶ Копировать: {tasks} файлов, без изменений: {unchanged}"
+msgid "▶ {tasks} files to copy, {deleted} files to delete, {unchanged} unchanged"
+msgstr ""
+"▶ Копировать: {tasks} файлов, удалить: {deleted}, без изменений: "
+"{unchanged}"
 
-#: src/copier.py:126
+#: src/copier.py:236
 msgid "Copying…"
 msgstr "Копирование…"
 
-#: src/copier.py:139
+#: src/copier.py:249
 #, python-brace-format
 msgid "❗ Error copying {src} → {dst} ({exc})"
 msgstr "❗ Ошибка копирования {src} → {dst} ({exc})"
 
-#: src/copier.py:154
+#: src/copier.py:264
+#, python-brace-format
+msgid "❗ Error deleting {dst} ({exc})"
+msgstr "❗ Ошибка удаления {dst} ({exc})"
+
+#: src/copier.py:279
+msgid "No error details captured."
+msgstr "Подробности ошибок не записаны."
+
+#: src/copier.py:281
 #, python-brace-format
 msgid "⚠️ Errors logged in: {0}"
 msgstr "⚠️ Ошибки записаны в: {0}"
 
-#: src/gui/ExcludeDialog.py:21 src/gui/MainWindow.py:51
-#: src/gui/MainWindow.py:55
+#: src/copier.py:282
+#, python-brace-format
+msgid "Backup finished with errors. See {0}"
+msgstr "Бэкап завершён с ошибками. См. {0}"
+
+#: src/copier.py:283
+msgid "Backup finished with errors."
+msgstr "Бэкап завершён с ошибками."
+
+#: src/tray.py:122
+msgid "Starting backup…"
+msgstr "Запуск копирования…"
+
+#: src/tray.py:184
+#, python-brace-format
+msgid "Backup in progress ({pct}%)"
+msgstr "Копирование выполняется ({pct}%)"
+
+#: src/tray.py:193
+msgid "Backup completed"
+msgstr "Копирование завершено"
+
+#: src/tray.py:193
+msgid "Backup failed"
+msgstr "Копирование завершилось неудачно"
+
+#: src/tray.py:194
+msgid "Done. You can close this notification."
+msgstr "Готово. Можно закрыть уведомление."
+
+#: src/tray.py:194
+msgid "Check logs for details."
+msgstr "Проверьте логи для подробностей."
+
+#: src/gui/ExcludeDialog.py:21 src/gui/MainWindow.py:85
+#: src/gui/MainWindow.py:89
 msgid "Exclusions"
 msgstr "Исключения"
 
@@ -152,7 +255,7 @@ msgstr "Снять выделение"
 msgid "Full Height"
 msgstr "Полная высота"
 
-#: src/gui/ExcludeDialog.py:51 src/gui/MainWindow.py:84
+#: src/gui/ExcludeDialog.py:51 src/gui/MainWindow.py:150
 msgid "Save"
 msgstr "Сохранить"
 
@@ -164,184 +267,531 @@ msgstr "Файл / Папка"
 msgid "Size"
 msgstr "Размер"
 
-#: src/gui/ExcludeDialog.py:202
+#: src/gui/ExcludeDialog.py:207
 #, python-brace-format
 msgid "Selected: {count} • Size: {size}"
 msgstr "Выбрано: {count} • Размер: {size}"
 
-#: src/gui/MainWindow.py:22
+#: src/gui/MainWindow.py:36
 msgid "Backup Tool Settings"
 msgstr "Настройки копирования"
 
-#: src/gui/MainWindow.py:34
+#: src/gui/MainWindow.py:51
 msgid "Backup target:"
 msgstr "Папка назначения:"
 
-#: src/gui/MainWindow.py:44
+#: src/gui/MainWindow.py:78
 msgid "Sources:"
 msgstr "Источники:"
 
-#: src/gui/MainWindow.py:48
+#: src/gui/MainWindow.py:82
 msgid "+ Add source"
 msgstr "+ Добавить источник"
 
-#: src/gui/MainWindow.py:49
+#: src/gui/MainWindow.py:83
 msgid "– Delete"
 msgstr "– Удалить"
 
-#: src/gui/MainWindow.py:50
+#: src/gui/MainWindow.py:84
 msgid "Clear"
 msgstr "Очистить"
 
-#: src/gui/MainWindow.py:60 src/gui/MainWindow.py:160
+#: src/gui/MainWindow.py:94 src/gui/MainWindow.py:237
 msgid "Exclusions for source:"
 msgstr "Исключения для источника:"
 
-#: src/gui/MainWindow.py:66
+#: src/gui/MainWindow.py:109
 msgid "Schedule"
 msgstr "Расписание"
 
-#: src/gui/MainWindow.py:75
-msgid "Background run"
-msgstr "Настройки запуска"
-
-#: src/gui/MainWindow.py:77
-msgid "Wait before closing console window"
-msgstr "Ждать перед закрытием консоли"
-
-#: src/gui/MainWindow.py:78
-msgid "Show console progress"
-msgstr "Показывать прогресс в консоли"
-
-#: src/gui/MainWindow.py:79
-msgid "Show tray icon while backing up"
-msgstr "Показывать значок в трее во время копирования"
-
-#: src/gui/MainWindow.py:80
-msgid "Show floating bubble when finished"
-msgstr "Показывать всплывающее уведомление после завершения"
-
-#: src/gui/MainWindow.py:68
+#: src/gui/MainWindow.py:113
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
 
-#: src/gui/MainWindow.py:69
+#: src/gui/MainWindow.py:114
 msgid "Weekly (Mon at 03:00)"
 msgstr "Каждую неделю (Пн в 03:00)"
 
-#: src/gui/MainWindow.py:70
+#: src/gui/MainWindow.py:115
 msgid "On logon"
 msgstr "При входе в систему"
 
-#: src/gui/MainWindow.py:71
+#: src/gui/MainWindow.py:116
 msgid "On idle (20 min)"
 msgstr "В простое (20 мин)"
 
-#: src/gui/MainWindow.py:72
+#: src/gui/MainWindow.py:117
 msgid "On unlock"
 msgstr "При разблокировке"
 
-#: src/gui/MainWindow.py:86
+#: src/gui/MainWindow.py:133
+msgid "Background run"
+msgstr "Настройки запуска"
+
+#: src/gui/MainWindow.py:137
+msgid "Wait before closing console window"
+msgstr "Ждать перед закрытием консоли"
+
+#: src/gui/MainWindow.py:138
+msgid "Show console progress"
+msgstr "Показывать прогресс в консоли"
+
+#: src/gui/MainWindow.py:139
+msgid "Show tray icon while backing up"
+msgstr "Показывать значок в трее во время копирования"
+
+#: src/gui/MainWindow.py:140
+msgid "Show floating bubble when finished"
+msgstr "Показывать всплывающее уведомление после завершения"
+
+#: src/gui/MainWindow.py:149
+msgid "Version history"
+msgstr "История версий"
+
+#: src/gui/MainWindow.py:153
+msgid "Keep:"
+msgstr "Хранить:"
+
+#: src/gui/MainWindow.py:172
+msgid "Reload saved"
+msgstr "Загрузить сохранённое"
+
+#: src/gui/MainWindow.py:154 src/gui/MainWindow.py:297
+#: src/gui/MainWindow.py:309
 msgid "Restore"
 msgstr "Восстановить"
 
-#: src/gui/MainWindow.py:88
+#: src/gui/MainWindow.py:190
+msgid "Restore version"
+msgstr "Восстановить версию"
+
+#: src/gui/MainWindow.py:156
 msgid "Run backup"
 msgstr "Сделать копию"
 
-#: src/gui/MainWindow.py:90
+#: src/gui/MainWindow.py:158
 msgid "Exit"
 msgstr "Выход"
 
-#: src/gui/MainWindow.py:135
+#: src/gui/MainWindow.py:212
 msgid "Select target directory"
 msgstr "Выберите папку назначения"
 
-#: src/gui/MainWindow.py:141
+#: src/gui/MainWindow.py:218
 msgid "Add source directory"
 msgstr "Добавить папку источника"
 
-#: src/gui/MainWindow.py:163
+#: src/gui/MainWindow.py:240
 #, python-brace-format
 msgid "Exclusions for: {source}"
 msgstr "Исключения для: {source}"
 
-#: src/gui/MainWindow.py:179 src/gui/MainWindow.py:197
+#: src/gui/MainWindow.py:256 src/gui/MainWindow.py:278
+#: src/gui/MainWindow.py:287 src/gui/RestoreDialog.py:134
+#: src/gui/RestoreDialog.py:138
 msgid "Error"
 msgstr "Ошибка"
 
-#: src/gui/MainWindow.py:179
+#: src/gui/MainWindow.py:256 src/gui/MainWindow.py:287
 msgid "Please specify the target directory"
 msgstr "Укажите папку назначения"
 
-#: src/gui/MainWindow.py:191
+#: src/gui/MainWindow.py:272
 msgid "Saved"
 msgstr "Сохранено"
 
+#: src/gui/MainWindow.py:181
+msgid "Save settings"
+msgstr "Сохранить настройки"
+
 #: src/gui/MainWindow.py:197
+msgid "Last backup:"
+msgstr "Последний бекап:"
+
+#: src/gui/MainWindow.py:401
+msgid "Size: calculating…"
+msgstr "Размер: расчёт…"
+
+#: src/gui/MainWindow.py:409
+#, python-brace-format
+msgid "Size: {size}"
+msgstr "Размер: {size}"
+
+#: src/gui/MainWindow.py:278
 msgid "No settings found"
 msgstr "Настройки не найдены"
 
-#: src/gui/MainWindow.py:201
-msgid "Restored"
-msgstr "Восстановлено"
+#: src/gui/MainWindow.py:309
+msgid "Settings reloaded"
+msgstr "Настройки перезагружены"
 
-#: src/gui/MainWindow.py:204
+#: src/gui/MainWindow.py:384
+msgid "Loaded"
+msgstr "Загр."
+
+#: src/gui/MainWindow.py:190
+msgid "Status:"
+msgstr "Статус:"
+
+#: src/gui/MainWindow.py:297
+msgid "No backup versions found"
+msgstr "Версии бэкапа не найдены"
+
+#: src/gui/MainWindow.py:309
+msgid "Nothing to restore for the selected version"
+msgstr "Для выбранной версии нечего восстанавливать"
+
+#: src/gui/MainWindow.py:313
+#, python-brace-format
+msgid ""
+"Apply selected restore changes? Create: {create}, replace: {replace}, "
+"delete: {delete}."
+msgstr ""
+"Применить выбранные изменения восстановления? Создать: {create}, "
+"заменить: {replace}, удалить: {delete}."
+
+#: src/gui/MainWindow.py:320 src/gui/MainWindow.py:333
+msgid "Confirm restore"
+msgstr "Подтвердите восстановление"
+
+#: src/gui/MainWindow.py:328
+#, python-brace-format
+msgid "Export selected full-version files to the output folder? Files: {count}."
+msgstr ""
+"Экспортировать выбранные файлы полной версии в выходную папку? Файлов: "
+"{count}."
+
+#: src/gui/MainWindow.py:343
+msgid "Restoring…"
+msgstr "Восстановление…"
+
+#: src/gui/MainWindow.py:363
 msgid "Calculating size…"
 msgstr "Подсчёт размера…"
 
-#: src/gui/MainWindow.py:213
+#: src/gui/MainWindow.py:372
 #, python-brace-format
 msgid "Estimated backup size: {size}"
 msgstr "Оценочный размер копии: {size}"
 
-#: src/gui/MainWindow.py:219
+#: src/gui/MainWindow.py:378
 msgid "Backing up…"
 msgstr "Копирование…"
 
-#: src/gui/MainWindow.py:234
-msgid "Done"
-msgstr "Готово"
-
-#: src/gui/MainWindow.py:236
-msgid "Finished with errors"
-msgstr "Завершено с ошибками"
-
-#: src/gui/MainWindow.py:249
+#: src/gui/MainWindow.py:402
 #, python-brace-format
 msgid "Last successful backup: {ts}"
 msgstr "Последний успешный бэкап: {ts}"
 
-#: src/gui/MainWindow.py:251
+#: src/gui/MainWindow.py:404
 msgid "Last successful backup: never"
 msgstr "Последний успешный бэкап: никогда"
 
-#: main.py:37
+#: src/gui/MainWindow.py:410
+msgid "Done"
+msgstr "Готово"
+
+#: src/gui/MainWindow.py:410
+msgid "Finished with errors"
+msgstr "Завершено с ошибками"
+
+#: src/gui/MainWindow.py:417
+msgid "Restore completed"
+msgstr "Восстановление завершено"
+
+#: src/gui/MainWindow.py:417
+msgid "Restore finished with errors"
+msgstr "Восстановление завершено с ошибками"
+
+#: src/gui/RestoreDialog.py:28
+msgid "Restore backup"
+msgstr "Восстановить бэкап"
+
+#: src/gui/RestoreDialog.py:51
+msgid "Version:"
+msgstr "Версия:"
+
+#: src/gui/RestoreDialog.py:54
+msgid "Original folders: apply patch only"
+msgstr "Исходные папки: применить только патч"
+
+#: src/gui/RestoreDialog.py:55
+msgid "Selected folder: restore full version"
+msgstr "Выбранная папка: восстановить полную версию"
+
+#: src/gui/RestoreDialog.py:57
+msgid "Restore to:"
+msgstr "Куда восстановить:"
+
+#: src/gui/RestoreDialog.py:63
+msgid "Folder..."
+msgstr "Папка..."
+
+#: src/gui/RestoreDialog.py:66
+msgid "Output folder:"
+msgstr "Выходная папка:"
+
+#: src/gui/RestoreDialog.py:77
+msgid "Apply"
+msgstr "Применить"
+
+#: src/gui/RestoreDialog.py:78
+msgid "Issue"
+msgstr "Проблема"
+
+#: src/gui/RestoreDialog.py:79
+msgid "Action"
+msgstr "Действие"
+
+#: src/gui/RestoreDialog.py:80
+msgid "File"
+msgstr "Файл"
+
+#: src/gui/RestoreDialog.py:81
+msgid "Current size"
+msgstr "Текущий размер"
+
+#: src/gui/RestoreDialog.py:82
+msgid "Current modified"
+msgstr "Текущая дата"
+
+#: src/gui/RestoreDialog.py:83
+msgid "Selected size"
+msgstr "Размер версии"
+
+#: src/gui/RestoreDialog.py:84
+msgid "Selected modified"
+msgstr "Дата версии"
+
+#: src/gui/RestoreDialog.py:107
+msgid "Select all"
+msgstr "Выбрать всё"
+
+#: src/gui/RestoreDialog.py:109
+msgid "Select none"
+msgstr "Снять выбор"
+
+#: src/gui/RestoreDialog.py:111
+msgid "Refresh diff"
+msgstr "Обновить разницу"
+
+#: src/gui/RestoreDialog.py:123
+msgid "Apply selected"
+msgstr "Применить выбранное"
+
+#: src/gui/RestoreDialog.py:134
+msgid "No restore plan is available"
+msgstr "План восстановления недоступен"
+
+#: src/gui/RestoreDialog.py:138
+msgid "Select at least one change to apply"
+msgstr "Выберите хотя бы одно изменение для применения"
+
+#: src/gui/RestoreDialog.py:154
+msgid "Select version to see restore preview"
+msgstr "Выберите версию, чтобы увидеть предпросмотр восстановления"
+
+#: src/gui/RestoreDialog.py:160
+msgid "Select output folder to preview the full selected version"
+msgstr "Выберите выходную папку, чтобы увидеть полную выбранную версию"
+
+#: src/gui/RestoreDialog.py:175
 #, python-brace-format
-msgid "Tray icon mode failed ({exc}). Falling back to console output."
-msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
+msgid "Could not build restore diff: {exc}"
+msgstr "Не удалось построить разницу восстановления: {exc}"
 
-#: src/tray.py:35
-msgid "Starting backup…"
-msgstr "Запуск копирования…"
+#: src/gui/RestoreDialog.py:239
+msgid "Select export folder"
+msgstr "Выберите папку экспорта"
 
-#: src/tray.py:95
+#: src/gui/RestoreDialog.py:285
+msgid "Current file is newer than the selected version"
+msgstr "Текущий файл новее выбранной версии"
+
+#: src/gui/RestoreDialog.py:333
+msgid "No files in this selected version and scope"
+msgstr "В выбранной версии и области нет файлов"
+
+#: src/gui/RestoreDialog.py:334
+msgid "No patch is needed for this version and scope"
+msgstr "Для этой версии и области патч не нужен"
+
+#: src/gui/RestoreDialog.py:336
 #, python-brace-format
-msgid "Backup in progress ({pct}%)"
-msgstr "Копирование выполняется ({pct}%)"
+msgid "Full version export from all configured sources: {export} files"
+msgstr "Экспорт полной версии из всех настроенных источников: {export} файлов"
 
-#: src/tray.py:104
-msgid "Backup completed"
-msgstr "Копирование завершено"
+#: src/gui/RestoreDialog.py:338
+#, python-brace-format
+msgid ""
+"Patch original files from all configured sources: create {create}, "
+"replace {replace}, delete {delete}, conflicts {conflicts}"
+msgstr ""
+"Патч исходных файлов из всех настроенных источников: создать {create}, "
+"заменить {replace}, удалить {delete}, конфликты {conflicts}"
 
-#: src/tray.py:104
-msgid "Backup failed"
-msgstr "Копирование завершилось неудачно"
+#: src/gui/RestoreDialog.py:349
+msgid "Create"
+msgstr "Создать"
 
-#: src/tray.py:105
-msgid "Done. You can close this notification."
-msgstr "Готово. Можно закрыть уведомление."
+#: src/gui/RestoreDialog.py:350
+msgid "Replace"
+msgstr "Заменить"
 
-#: src/tray.py:105
-msgid "Check logs for details."
-msgstr "Проверьте логи для подробностей."
+#: src/gui/RestoreDialog.py:351
+msgid "Delete"
+msgstr "Удалить"
+
+#: src/gui/RestoreDialog.py:352
+msgid "Export"
+msgstr "Экспорт"
+
+#: src/gui/RestoreDialog.py:358
+msgid "Conflict"
+msgstr "Конфликт"
+
+#: src/gui/RestoreDialog.py:365
+msgid "Missing"
+msgstr "Отсутствует"
+
+#: src/gui/RestoreDialog.py:369
+msgid "Existing"
+msgstr "Существует"
+
+#: src/gui/RestoreDialog.py:374
+msgid "Output file will be written"
+msgstr "Выходной файл будет записан"
+
+#: src/gui/RestoreDialog.py:382
+msgid "Absent"
+msgstr "Отсутствует"
+
+#: src/gui/RestoreDialog.py:383
+msgid "Selected file"
+msgstr "Выбранный файл"
+
+#: src/gui/RestoreDialog.py:408
+#, python-brace-format
+msgid "Conflicts: {count}"
+msgstr "Конфликтов: {count}"
+
+#: src/gui/RestoreDialog.py:112
+msgid "Delete version"
+msgstr "Удалить версию"
+
+#: src/gui/RestoreDialog.py:181
+msgid ""
+"Delete selected backup version? The latest mirror stays untouched; only this "
+"restore point and unused archived files are removed."
+msgstr ""
+"Удалить выбранную версию бекапа? Актуальное зеркало останется нетронутым; "
+"будут удалены только эта точка восстановления и неиспользуемые архивные файлы."
+
+#: src/gui/RestoreDialog.py:197
+#, python-brace-format
+msgid "Could not delete backup version: {exc}"
+msgstr "Не удалось удалить версию бекапа: {exc}"
+
+#: src/gui/RestoreDialog.py:204
+msgid "No backup versions left"
+msgstr "Версий бекапа не осталось"
+
+#: src/copier.py:85
+#, python-brace-format
+msgid "⚠️ Could not prune old backup versions: {exc}"
+msgstr "⚠️ Не удалось удалить старые версии бекапа: {exc}"
+
+#: src/copier.py:90
+#, python-brace-format
+msgid "🧹 Removed old backup versions: {runs}; freed {bytes} bytes in {files} files"
+msgstr "🧹 Удалены старые версии бекапа: {runs}; освобождено {bytes} байт в {files} файлах"
+
+#: src/gui/MainWindow.py:146
+msgid "Keep backup versions:"
+msgstr "Хранить версий бекапа:"
+
+#: src/gui/MainWindow.py:149
+msgid "Unlimited"
+msgstr "Без лимита"
+
+#: src/gui/MainWindow.py:150
+msgid " versions"
+msgstr " версий"
+
+#~ msgid "Restore will replace files in their original locations. Continue?"
+#~ msgstr "Восстановление заменит файлы в исходных расположениях. Продолжить?"
+
+#~ msgid "Source / folder"
+#~ msgstr "Источник / папка"
+
+#~ msgid "Single file"
+#~ msgstr "Один файл"
+
+#~ msgid "Restore scope:"
+#~ msgstr "Что восстановить:"
+
+#~ msgid "Source:"
+#~ msgstr "Источник:"
+
+#~ msgid "Browse..."
+#~ msgstr "Обзор..."
+
+#~ msgid "Path:"
+#~ msgstr "Путь:"
+
+#~ msgid "Original paths"
+#~ msgstr "Исходные пути"
+
+#~ msgid "Export to folder"
+#~ msgstr "Экспорт в папку"
+
+#~ msgid "Please specify a restore path"
+#~ msgstr "Укажите путь для восстановления"
+
+#~ msgid "Please specify an export folder"
+#~ msgstr "Укажите папку экспорта"
+
+#~ msgid "Apply to original files"
+#~ msgstr "Применить к исходным файлам"
+
+#~ msgid "Export selected files"
+#~ msgstr "Экспортировать выбранные файлы"
+
+#~ msgid "Action:"
+#~ msgstr "Действие:"
+
+#~ msgid "File"
+#~ msgstr "Файл"
+
+#~ msgid "Select export folder to see export actions"
+#~ msgstr "Выберите папку экспорта, чтобы увидеть действия экспорта"
+
+#~ msgid "File..."
+#~ msgstr "Файл..."
+
+#~ msgid "Scope file/folder:"
+#~ msgstr "Файл/папка:"
+
+#~ msgid "Apply"
+#~ msgstr "Применить"
+
+#~ msgid "Select folder"
+#~ msgstr "Выберите папку"
+
+#~ msgid "Select file"
+#~ msgstr "Выберите файл"
+
+#~ msgid "Change"
+#~ msgstr "Изменение"
+
+#~ msgid "Target file"
+#~ msgstr "Целевой файл"
+
+#~ msgid "Existing, modified {mtime}"
+#~ msgstr "Существует, изменён {mtime}"
+
+#~ msgid "Absent in selected version"
+#~ msgstr "Отсутствует в выбранной версии"
+
+#~ msgid "modified {mtime}"
+#~ msgstr "изменён {mtime}"

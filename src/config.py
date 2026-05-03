@@ -27,6 +27,7 @@ class Settings:
     show_console: bool = True
     show_tray_icon: bool = True
     show_overlay: bool = True
+    retention_keep_successful_runs: int = 0
     last_success: Optional[str] = None
 
     def __post_init__(self):
@@ -42,6 +43,11 @@ class Settings:
             raise ValueError("Settings.show_tray_icon must be bool")
         if not isinstance(self.show_overlay, bool):
             raise ValueError("Settings.show_overlay must be bool")
+        if (
+                not isinstance(self.retention_keep_successful_runs, int)
+                or self.retention_keep_successful_runs < 0
+        ):
+            raise ValueError("Settings.retention_keep_successful_runs must be a non-negative integer")
         if self.last_success is not None and not isinstance(self.last_success, str):
             raise ValueError("Settings.last_success must be str or None")
 
@@ -59,6 +65,7 @@ class Settings:
                 show_console=data.get("show_console", True),
                 show_tray_icon=data.get("show_tray_icon", True),
                 show_overlay=data.get("show_overlay", True),
+                retention_keep_successful_runs=data.get("retention_keep_successful_runs", 0),
                 last_success=data.get("last_success"),
             )
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:

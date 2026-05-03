@@ -21,7 +21,13 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Preserves original folder structure under the target (e.g., `C:\Users\Foo\AppData\…` →
   `Backup\C\Users\Foo\AppData\…`).
 - **Incremental copies**  
-  Skips unchanged files (by size & timestamp, with optional SHA‑1 checksum).
+  Skips unchanged files by comparing content with SHA‑1, avoiding timestamp drift false positives.
+- **Version history**  
+  Keeps the latest backup as a plain mirror and stores older file versions under `.backup_versions`.
+- **Retention for old versions**
+  Optionally keeps only the latest N successful backup versions and removes archive files no remaining version needs.
+- **Restore from versions**  
+  Restore a folder or a single file to original paths, or export a selected version to another folder.
 - **Exclusion dialog**  
   Easily select which folders/files to include or exclude.
 - **Live size estimate**  
@@ -63,6 +69,55 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
 
 Settings are saved to `%AppData%\BackupTool\config.json`.
 
+## Versioned Backups
+
+The target directory still contains a direct mirror of the latest backup:
+
+```text
+BackupTarget\C\Users\Foo\AppData\...
+```
+
+That latest mirror can still be restored manually by copying files back.
+When a backed-up file changes or disappears from the source, the previous
+mirror copy is moved into a date-named version archive:
+
+```text
+BackupTarget\.backup_versions\files\YYYYMMDD_HHMMSS_run_N\C\Users\Foo\...
+BackupTarget\.backup_versions\index.sqlite3
+```
+
+If the target already contains a matching plain mirror but no version index yet,
+the next run records one baseline version for that mirror. Later runs with no
+file changes do not create extra versions.
+
+If the backup target is inside one of the configured source folders, the target
+subtree is skipped automatically so the backup does not copy itself.
+
+The GUI setting **Keep backup versions** can limit stored history. `Unlimited`
+keeps the previous behavior. When a limit is set, old successful versions are
+collapsed into the next remaining version first, then archive files that are no
+longer referenced by any remaining version are removed. The latest mirror is not
+deleted by retention.
+
+The GUI **Restore** action starts from a selected backup version and the
+configured sources. For original locations, it shows a diff between that
+version and the current files before anything is applied. Original-path restore
+applies only that patch: create, replace, or delete, and each action can be
+enabled or disabled with a checkbox. Before original-path restore overwrites or
+deletes an existing file, it saves that current file under
+`.backup_versions\restore_safety`. Restore changes only the original files; it
+does not update the latest mirror and does not create a backup version.
+The mirror is updated later by the next scheduled or manual backup run.
+If a backup run finds no changes, it also does not create an extra version.
+
+When restoring to a separate folder, the tool does not patch or touch original
+files. It exports the full selected version for the configured sources using the same
+absolute-path mirror layout as normal backups, for example:
+
+```text
+OutputFolder\C\Users\Foo\AppData\...
+```
+
 ## CLI Mode
 
 Run a backup using saved settings (for Task Scheduler or scripts):
@@ -101,7 +156,9 @@ Launch GUI with a visible console window (for debugging):
 python main.py --dev
 ```
 
-> Note: SHA‑1 verification is supported internally but not exposed in the interface yet.
+> Note: Backup change detection stores SHA‑1 hashes in the version index. Normal
+> no-change runs compare the source file with the indexed hash instead of
+> reading both the source and mirror copies.
 
 <p align="center">
   <img src="assets/CLI.png" alt="CLI Mode" width="600">

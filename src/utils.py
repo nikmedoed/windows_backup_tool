@@ -20,7 +20,8 @@ def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
     Compute SHA-1 digest of a file, using file_digest if available.
     """
     try:
-        return hashlib.file_digest(path, 'sha1', buf_size).hex()
+        with path.open('rb') as f:
+            return hashlib.file_digest(f, 'sha1').hexdigest()
     except AttributeError:
         h = hashlib.sha1()
         with path.open('rb') as f:
@@ -31,11 +32,12 @@ def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:
 
 def same_file(src: Path, dst: Path, use_hash: bool = False) -> bool:
     """
-    Returns True if the destination file exists, has the same size,
-    and similar modification time (within tolerance). Optionally compares
-    SHA-1 hashes if `use_hash` is True.
+    Returns True if the destination file exists and matches the source.
+    With `use_hash`, size and SHA-1 must match; otherwise size and a close
+    modification time are used.
 
-    This avoids false positives from timestamp rounding on filesystems like exFAT.
+    Hash mode avoids both timestamp rounding false positives and same-size
+    content changes with similar mtimes.
 
     Args:
         src (Path): Source file path.
@@ -52,12 +54,14 @@ def same_file(src: Path, dst: Path, use_hash: bool = False) -> bool:
         ds = dst.stat()
     except OSError:
         return False
+    if use_hash:
+        if ss.st_size != ds.st_size:
+            return False
+        return sha1(src) == sha1(dst)
     if ss.st_size != ds.st_size:
         return False
     if not math.isclose(ss.st_mtime, ds.st_mtime, abs_tol=_MTIME_TOLERANCE):
         return False
-    if use_hash:
-        return sha1(src) == sha1(dst)
     return True
 
 
