@@ -1,4 +1,5 @@
 import threading
+import re
 from html import escape
 from datetime import datetime
 from pathlib import Path
@@ -558,15 +559,25 @@ def _format_log_entry(message: str) -> str:
 def _log_level(message: str) -> str:
     text = message.strip()
     lowered = text.casefold()
-    if text.startswith(("❌", "❗")) or "error" in lowered or "ошиб" in lowered:
-        return "error"
+    summary_errors = _summary_error_count(text)
+    if summary_errors is not None:
+        return "error" if summary_errors else "success"
     if text.startswith(("⚠", "⌛")) or "warning" in lowered:
         return "warning"
+    if text.startswith(("❌", "❗")) or "error" in lowered or "ошиб" in lowered:
+        return "error"
     if text.startswith(("✅", "🧹")) or "done" in lowered:
         return "success"
-    if text.startswith(("▶", "🔍", "📂", "🛠", "📁", "🐞")):
+    if text.startswith(("▶", "🔍", "📂", "🛠", "📁", "🐞", "📋", "📚", "🧾")):
         return "work"
     return "info"
+
+
+def _summary_error_count(message: str) -> Optional[int]:
+    match = re.search(r"(?:errors|ошибок)\s*:\s*(\d+)", message, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return int(match.group(1))
 
 
 def _log_style(level: str) -> tuple[str, str, str, str]:

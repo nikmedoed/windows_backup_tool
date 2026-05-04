@@ -77,6 +77,11 @@ msgstr ""
 msgid "⚠️ Could not update version index: {exc}"
 msgstr "⚠️ Не удалось обновить индекс версий: {exc}"
 
+#: src/copier.py:111
+#, python-brace-format
+msgid "❗ Could not write error report: {exc}"
+msgstr "❗ Не удалось записать отчёт об ошибках: {exc}"
+
 #: src/copier.py:106
 msgid "Backup error"
 msgstr "Ошибка бэкапа"
@@ -144,6 +149,21 @@ msgstr "Не удалось создать папку назначения \"{0}
 msgid "📂 Scanning files…"
 msgstr "📂 Сканирование файлов…"
 
+#: src/copier.py:189
+#, python-brace-format
+msgid "📂 Scanned {count} files so far…"
+msgstr "📂 Просканировано файлов: {count}…"
+
+#: src/copier.py:197
+#, python-brace-format
+msgid "📋 Scan complete: {files} files found, {duplicates} duplicates skipped"
+msgstr "📋 Сканирование завершено: найдено файлов {files}, дублей пропущено {duplicates}"
+
+#: src/copier.py:199
+#, python-brace-format
+msgid "📚 Version index: {files} tracked files, {runs} successful runs"
+msgstr "📚 Индекс версий: файлов в учёте {files}, успешных запусков {runs}"
+
 #: src/copier.py:195
 msgid ""
 "\n"
@@ -168,14 +188,24 @@ msgstr "🛠 Анализ изменений…"
 msgid "Analyzing…"
 msgstr "Анализ…"
 
+#: src/copier.py:232
+#, python-brace-format
+msgid "🛠 Analyzed {done}/{total}: copy {copy}, unchanged {unchanged}"
+msgstr "🛠 Проанализировано {done}/{total}: копировать {copy}, без изменений {unchanged}"
+
 #: src/copier.py:242
 msgid "✅ No changes detected. Backup not required."
 msgstr "✅ Изменений нет. Копирование не требуется."
 
 #: src/copier.py:262
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "❗ Error updating version index for {src} ({exc})"
-msgstr "❗ Ошибка удаления {dst} ({exc})"
+msgstr "❗ Ошибка обновления индекса версий для {src} ({exc})"
+
+#: src/copier.py:252
+#, python-brace-format
+msgid "🧾 Version index updates needed for {count} unchanged files"
+msgstr "🧾 Нужно обновить индекс версий для неизменённых файлов: {count}"
 
 #: src/copier.py:264
 #, python-brace-format
@@ -215,6 +245,10 @@ msgstr "Бэкап завершён с ошибками. См. {0}"
 #: src/copier.py:334
 msgid "Backup finished with errors."
 msgstr "Бэкап завершён с ошибками."
+
+#: src/copier.py:337
+msgid "✅ Backup completed successfully."
+msgstr "✅ Копирование успешно завершено."
 
 #: src/tray.py:122
 msgid "Starting backup…"
@@ -795,4 +829,3 @@ msgstr "Конфликтов: {count}"
 
 #~ msgid " versions"
 #~ msgstr " версий"
-

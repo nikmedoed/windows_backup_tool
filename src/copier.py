@@ -1,4 +1,5 @@
 import atexit
+import math
 import os
 import shutil
 import time
@@ -11,8 +12,11 @@ from typing import Callable, Optional
 
 from src.i18n import _
 from .config import PathRule, Settings
-from .utils import DebugLog, iter_files, notify_user, same_file, sha1
+from .utils import DebugLog, iter_files, notify_user, sha1
 from .version_store import FileRecord, VersionStore, mirror_relative_for_source, source_roots_for_rules
+
+_PROGRESS_LOG_INTERVAL_SECONDS = 5.0
+_MTIME_TOLERANCE_SECONDS = 2.0
 
 
 @dataclass
@@ -43,7 +47,7 @@ def run_backup(
         cfg: Settings,
         progress_cb: Optional[Callable[[int, int], None]] = None,
         log_cb: Optional[Callable[[str], None]] = None,
-        use_hash: bool = True,
+        use_hash: bool = False,
         debug: bool = False,
         debug_path: Optional[str] = None,
 ) -> bool:
@@ -73,6 +77,18 @@ def run_backup(
         cfg.last_success = ts
         Settings.patch(last_success=ts)
 
+    def _write_error_report() -> Optional[Path]:
+        desktop = Path.home() / "Desktop"
+        try:
+            desktop.mkdir(exist_ok=True)
+            fname = desktop / f"backup_errors_{datetime.now():%Y%m%d_%H%M%S}.log"
+            content = "\n".join(error_messages) if error_messages else _("No error details captured.")
+            fname.write_text(content, encoding="utf-8")
+            return fname
+        except Exception as exc:
+            _log(_("❗ Could not write error report: {exc}").format(exc=exc), is_error=True)
+            return None
+
     def _apply_retention() -> None:
         keep = getattr(cfg, "retention_keep_successful_runs", 0)
         if not keep or store is None:
@@ -98,6 +114,12 @@ def run_backup(
             except Exception as exc:
                 _log(_("⚠️ Could not update version index: {exc}").format(exc=exc), is_error=True)
                 success = False
+                if message is None:
+                    fname = _write_error_report()
+                    message = (
+                        _("Backup finished with errors. See {0}").format(fname)
+                        if fname else _("Backup finished with errors.")
+                    )
         if success:
             _apply_retention()
             _mark_success()
@@ -174,21 +196,32 @@ def run_backup(
         _log(_("📂 Scanning files…"))
         all_items: list[tuple[Path, Path]] = []
         scanned_keys: set[str] = set()
+        duplicate_count = 0
+        last_scan_log = time.monotonic()
         for rule in cfg.sources:
             source_root = Path(rule.source).expanduser().resolve()
             effective_rule = _rule_without_backup_target(rule, source_root, tgt_root, dbg=dbg)
             for file_path in iter_files(effective_rule, debug_log=dbg.log if dbg.enabled else None):
                 key = _path_key(file_path)
                 if key in scanned_keys:
+                    duplicate_count += 1
                     if dbg.enabled:
                         dbg.log(f"DUPLICATE_SOURCE_FILE: {file_path}")
                     continue
                 scanned_keys.add(key)
                 all_items.append((file_path, source_root))
+                now = time.monotonic()
+                if now - last_scan_log >= _PROGRESS_LOG_INTERVAL_SECONDS:
+                    _log(_("📂 Scanned {count} files so far…").format(count=len(all_items)))
+                    last_scan_log = now
         stats.scanned = len(all_items)
         scanned_sources = {_path_key(src) for src, _ in all_items}
         indexed_files = {_path_key(Path(record.source_path)): record for record in store.list_files()}
         successful_run_ids = store.successful_run_ids()
+        _log(_("📋 Scan complete: {files} files found, {duplicates} duplicates skipped")
+             .format(files=stats.scanned, duplicates=duplicate_count))
+        _log(_("📚 Version index: {files} tracked files, {runs} successful runs")
+             .format(files=len(indexed_files), runs=len(successful_run_ids)))
 
         def _pause_console():
             if stats.errors:
@@ -207,6 +240,7 @@ def run_backup(
         _log(_("🛠 Analyzing files on changes…"))
         iterator = (tqdm(all_items, desc=_("Analyzing…"), unit="file")
                     if use_tqdm else all_items)
+        last_analysis_log = time.monotonic()
 
         for idx, (src, source_root) in enumerate(iterator, start=1):
             mirror_rel = mirror_relative_for_source(src)
@@ -224,6 +258,11 @@ def run_backup(
                 tasks.append((src, source_root, mirror_rel, dst))
             if not use_tqdm:
                 _prog(idx, stats.scanned)
+            now = time.monotonic()
+            if now - last_analysis_log >= _PROGRESS_LOG_INTERVAL_SECONDS:
+                _log(_("🛠 Analyzed {done}/{total}: copy {copy}, unchanged {unchanged}")
+                     .format(done=idx, total=stats.scanned, copy=len(tasks), unchanged=stats.unchanged))
+                last_analysis_log = now
         if not use_tqdm and not progress_cb:
             print()
 
@@ -243,9 +282,13 @@ def run_backup(
             _log(stats.summary())
             if progress_cb:
                 progress_cb(0, 0)
+            _log(_("✅ Backup completed successfully."))
             return _finalize(True)
 
         run_id = store.begin_run()
+        if index_update_items:
+            _log(_("🧾 Version index updates needed for {count} unchanged files")
+                 .format(count=len(index_update_items)))
         for src, source_root, mirror_rel, dst, content_hash, force_version in index_update_items:
             try:
                 store.record_seen(
@@ -265,6 +308,7 @@ def run_backup(
              .format(tasks=len(tasks), deleted=len(delete_tasks), unchanged=stats.unchanged))
 
         done = 0
+        total_work = len(tasks) + len(delete_tasks)
         max_workers = min(8, (os.cpu_count() or 4) * 2)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -301,7 +345,7 @@ def run_backup(
                         src=src, dst=dst, exc=exc), is_error=True)
                 done += 1
                 if not use_tqdm:
-                    _prog(done, len(tasks) + len(delete_tasks))
+                    _prog(done, total_work)
 
         for record, dst in delete_tasks:
             try:
@@ -315,24 +359,20 @@ def run_backup(
                 _log(_("❗ Error deleting {dst} ({exc})").format(dst=dst, exc=exc), is_error=True)
             done += 1
             if not use_tqdm:
-                _prog(done, len(tasks) + len(delete_tasks))
+                _prog(done, total_work)
 
         _log(stats.summary())
         if progress_cb:
-            total_work = len(tasks) + len(delete_tasks)
             progress_cb(total_work, total_work)
 
         if stats.errors:
-            desktop = Path.home() / "Desktop"
-            desktop.mkdir(exist_ok=True)
-            fname = desktop / f"backup_errors_{datetime.now():%Y%m%d_%H%M%S}.log"
-            if progress_cb is None and log_cb is None:
-                content = "\n".join(error_messages) if error_messages else _("No error details captured.")
-                fname.write_text(content, encoding="utf-8")
-                _log(_("⚠️ Errors logged in: {0}").format(fname), is_error=True)
+            fname = _write_error_report()
+            if fname:
+                _log(_("⚠️ Errors logged in: {0}").format(fname))
                 return _finalize(False, _("Backup finished with errors. See {0}").format(fname))
             return _finalize(False, _("Backup finished with errors."))
 
+        _log(_("✅ Backup completed successfully."))
         return _finalize(True)
     finally:
         if store is not None:
@@ -375,8 +415,6 @@ def _same_indexed_file(
         record: Optional[FileRecord],
         use_hash: bool,
 ) -> tuple[bool, Optional[str]]:
-    if not use_hash:
-        return same_file(src, dst, use_hash=False), None
     if record is None or record.state != "present" or not record.current_hash:
         if not dst.exists():
             return False, None
@@ -387,6 +425,8 @@ def _same_indexed_file(
             return False, None
         if src_stat.st_size != dst_stat.st_size:
             return False, None
+        if not use_hash and _mtime_close(src_stat.st_mtime, dst_stat.st_mtime):
+            return True, None
         content_hash = sha1(src)
         return content_hash == sha1(dst), content_hash
     if not dst.exists():
@@ -398,8 +438,17 @@ def _same_indexed_file(
         return False, None
     if src_stat.st_size != record.current_size or dst_stat.st_size != record.current_size:
         return False, None
+    if not use_hash and _mtime_close(src_stat.st_mtime, record.current_mtime):
+        if _mtime_close(dst_stat.st_mtime, record.current_mtime):
+            return True, record.current_hash
     content_hash = sha1(src)
     return content_hash == record.current_hash, content_hash
+
+
+def _mtime_close(left: Optional[float], right: Optional[float]) -> bool:
+    if left is None or right is None:
+        return False
+    return math.isclose(left, right, abs_tol=_MTIME_TOLERANCE_SECONDS)
 
 
 def _needs_successful_version(record: Optional[FileRecord], successful_run_ids: set[int]) -> bool:

@@ -176,8 +176,9 @@ The updater is intentionally quiet:
 - if replacement fails because another instance is still running, the staged update remains and is retried on a later launch.
 
 > Note: Backup change detection stores SHA‑1 hashes in the version index. Normal
-> no-change runs compare the source file with the indexed hash instead of
-> reading both the source and mirror copies.
+> no-change runs use indexed size/mtime metadata first and hash only files whose
+> metadata changed. Strict hash comparison is still available in code through
+> `run_backup(..., use_hash=True)`.
 
 <p align="center">
   <img src="assets/CLI.png" alt="CLI Mode" width="600">

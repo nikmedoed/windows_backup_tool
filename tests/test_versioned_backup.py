@@ -257,7 +257,12 @@ class VersionedBackupTests(unittest.TestCase):
 
         source_file.write_text("bbbb", encoding="utf-8")
         os.utime(source_file, (source_file.stat().st_atime, original_mtime))
-        self.run_backup()
+        self.assertTrue(run_backup(
+            self.cfg,
+            progress_cb=lambda _i, _t: None,
+            log_cb=lambda _m: None,
+            use_hash=True,
+        ))
 
         mirror_file = mirror_path_for_source(self.target, source_file)
         self.assertEqual(mirror_file.read_text(encoding="utf-8"), "bbbb")
@@ -296,12 +301,12 @@ class VersionedBackupTests(unittest.TestCase):
         finally:
             store.close()
 
-    def test_no_change_backup_uses_index_hash_without_full_file_compare(self) -> None:
+    def test_no_change_backup_uses_index_metadata_without_full_file_hash(self) -> None:
         source_file = self.source / "save.txt"
         source_file.write_text("version one", encoding="utf-8")
         self.run_backup()
 
-        with mock.patch("src.copier.same_file", side_effect=AssertionError("same_file should not be used")):
+        with mock.patch("src.copier.sha1", side_effect=AssertionError("sha1 should not be used")):
             self.run_backup()
 
     def test_changed_backup_does_not_update_index_for_all_unchanged_files(self) -> None:
