@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: muromcevn@gmail.com\n"
-"POT-Creation-Date: 2026-05-03 22:00+0400\n"
+"POT-Creation-Date: 2026-05-04 23:37+0400\n"
 "PO-Revision-Date: 2025-04-28 16:12+0400\n"
 "Last-Translator: Nikita Muromtsev <muromcevn@gmail.com>\n"
 "Language: ru\n"
@@ -18,29 +18,29 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: main.py:8
+#: main.py:9
 msgid "Windows Backup Tool"
 msgstr "Инструмент резервного копирования Windows"
 
-#: main.py:12
+#: main.py:13
 msgid ""
 "Run backup according to the saved configuration (called from the "
 "scheduler)"
 msgstr "Запуск копирования по сохранённой конфигурации (вызывается планировщиком)"
 
-#: main.py:17
+#: main.py:18
 msgid "Run in development mode (if elevating, show console window)"
 msgstr "Запуск в режиме разработки (при повышении прав показывать консоль)"
 
-#: main.py:25
+#: main.py:26
 msgid "Enable debug traversal log (optional path)"
 msgstr "Включить отладочный лог обхода (необязательный путь)"
 
-#: main.py:36
+#: main.py:48
 msgid "No saved configuration, run GUI first."
 msgstr "Конфигурация не найдена, запустите графический интерфейс."
 
-#: main.py:45
+#: main.py:57
 #, python-brace-format
 msgid "Tray icon mode failed ({exc}). Falling back to console output."
 msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
@@ -58,79 +58,93 @@ msgstr ""
 msgid "Progress"
 msgstr "Ход выполнения"
 
-#: src/copier.py:81
+#: src/copier.py:83
+#, python-brace-format
+msgid "⚠️ Could not prune old backup versions: {exc}"
+msgstr "⚠️ Не удалось удалить старые версии бекапа: {exc}"
+
+#: src/copier.py:87
+#, python-brace-format
+msgid ""
+"🧹 Removed old backup versions: {runs}; freed {bytes} bytes in {files} "
+"files"
+msgstr ""
+"🧹 Удалены старые версии бекапа: {runs}; освобождено {bytes} байт в "
+"{files} файлах"
+
+#: src/copier.py:99
 #, python-brace-format
 msgid "⚠️ Could not update version index: {exc}"
 msgstr "⚠️ Не удалось обновить индекс версий: {exc}"
 
-#: src/copier.py:87
+#: src/copier.py:106
 msgid "Backup error"
 msgstr "Ошибка бэкапа"
 
-#: src/copier.py:111
+#: src/copier.py:130
 #, python-brace-format
 msgid "⌛ Waiting for target location to become available (up to {sec}s)…"
 msgstr "⌛ Ожидание доступности папки назначения (до {sec} с)…"
 
-#: src/copier.py:119
+#: src/copier.py:138
 #, python-brace-format
 msgid "⚠️ Debug log disabled: {err}"
 msgstr "⚠️ Отладочный лог отключён: {err}"
 
-#: src/copier.py:121
+#: src/copier.py:140
 #, python-brace-format
 msgid "🐞 Debug log: {path}"
 msgstr "🐞 Отладочный лог: {path}"
 
-#: src/copier.py:124
+#: src/copier.py:143
 msgid "🔍 Starting backup…"
 msgstr "🔍 Начинается копирование…"
 
-#: src/copier.py:128
+#: src/copier.py:147
 #, python-brace-format
 msgid "Target \"{0}\" is not available"
 msgstr "Папка назначения \"{0}\" недоступна"
 
-#: src/copier.py:129
+#: src/copier.py:148
 #, python-brace-format
 msgid "❌ {msg}"
 msgstr "❌ {msg}"
 
-#: src/copier.py:132
+#: src/copier.py:151
 #, python-brace-format
 msgid "✅ Target is now available: {0}"
 msgstr "✅ Папка назначения теперь доступна: {0}"
 
-#: src/copier.py:136
+#: src/copier.py:155
 #, python-brace-format
 msgid "❌ Target path \"{0}\" exists but is not a directory"
 msgstr "❌ Путь \"{0}\" существует, но это не папка"
 
-#: src/copier.py:137
+#: src/copier.py:156
 #, python-brace-format
 msgid "Target path \"{0}\" is not a directory"
 msgstr "Путь назначения \"{0}\" не является папкой"
 
-#: src/copier.py:141
+#: src/copier.py:160
 #, python-brace-format
 msgid "📁 Created target directory {0}"
 msgstr "📁 Создана папка назначения {0}"
 
-#: src/copier.py:143
+#: src/copier.py:162
 #, python-brace-format
 msgid "❌ Could not create target directory \"{0}\": {1}"
 msgstr "❌ Не удалось создать папку \"{0}\": {1}"
 
-#: src/copier.py:144
+#: src/copier.py:163
 #, python-brace-format
 msgid "Could not create target directory \"{0}\""
 msgstr "Не удалось создать папку назначения \"{0}\""
 
-#: src/copier.py:156
+#: src/copier.py:174
 msgid "📂 Scanning files…"
 msgstr "📂 Сканирование файлов…"
 
-#: src/copier.py:169
+#: src/copier.py:195
 msgid ""
 "\n"
 "⚠️ Backup finished with errors. Press Enter to exit…"
@@ -138,7 +152,7 @@ msgstr ""
 "\n"
 "⚠️ Копирование завершено с ошибками. Нажмите Enter для выхода…"
 
-#: src/copier.py:171
+#: src/copier.py:197
 msgid ""
 "\n"
 "✅ Backup completed successfully. Window will close in 10 seconds…"
@@ -146,54 +160,59 @@ msgstr ""
 "\n"
 "✅ Копирование успешно завершено. Окно закроется через 10 секунд…"
 
-#: src/copier.py:179
+#: src/copier.py:207
 msgid "🛠 Analyzing files on changes…"
 msgstr "🛠 Анализ изменений…"
 
-#: src/copier.py:180
+#: src/copier.py:208
 msgid "Analyzing…"
 msgstr "Анализ…"
 
-#: src/copier.py:208
+#: src/copier.py:242
 msgid "✅ No changes detected. Backup not required."
 msgstr "✅ Изменений нет. Копирование не требуется."
 
-#: src/copier.py:213
+#: src/copier.py:262
+#, fuzzy, python-brace-format
+msgid "❗ Error updating version index for {src} ({exc})"
+msgstr "❗ Ошибка удаления {dst} ({exc})"
+
+#: src/copier.py:264
 #, python-brace-format
 msgid "▶ {tasks} files to copy, {deleted} files to delete, {unchanged} unchanged"
 msgstr ""
 "▶ Копировать: {tasks} файлов, удалить: {deleted}, без изменений: "
 "{unchanged}"
 
-#: src/copier.py:236
+#: src/copier.py:287
 msgid "Copying…"
 msgstr "Копирование…"
 
-#: src/copier.py:249
+#: src/copier.py:300
 #, python-brace-format
 msgid "❗ Error copying {src} → {dst} ({exc})"
 msgstr "❗ Ошибка копирования {src} → {dst} ({exc})"
 
-#: src/copier.py:264
+#: src/copier.py:315
 #, python-brace-format
 msgid "❗ Error deleting {dst} ({exc})"
 msgstr "❗ Ошибка удаления {dst} ({exc})"
 
-#: src/copier.py:279
+#: src/copier.py:330
 msgid "No error details captured."
 msgstr "Подробности ошибок не записаны."
 
-#: src/copier.py:281
+#: src/copier.py:332
 #, python-brace-format
 msgid "⚠️ Errors logged in: {0}"
 msgstr "⚠️ Ошибки записаны в: {0}"
 
-#: src/copier.py:282
+#: src/copier.py:333
 #, python-brace-format
 msgid "Backup finished with errors. See {0}"
 msgstr "Бэкап завершён с ошибками. См. {0}"
 
-#: src/copier.py:283
+#: src/copier.py:334
 msgid "Backup finished with errors."
 msgstr "Бэкап завершён с ошибками."
 
@@ -222,8 +241,8 @@ msgstr "Готово. Можно закрыть уведомление."
 msgid "Check logs for details."
 msgstr "Проверьте логи для подробностей."
 
-#: src/gui/ExcludeDialog.py:21 src/gui/MainWindow.py:85
-#: src/gui/MainWindow.py:89
+#: src/gui/ExcludeDialog.py:21 src/gui/MainWindow.py:106
+#: src/gui/MainWindow.py:111
 msgid "Exclusions"
 msgstr "Исключения"
 
@@ -255,7 +274,7 @@ msgstr "Снять выделение"
 msgid "Full Height"
 msgstr "Полная высота"
 
-#: src/gui/ExcludeDialog.py:51 src/gui/MainWindow.py:150
+#: src/gui/ExcludeDialog.py:51
 msgid "Save"
 msgstr "Сохранить"
 
@@ -272,176 +291,163 @@ msgstr "Размер"
 msgid "Selected: {count} • Size: {size}"
 msgstr "Выбрано: {count} • Размер: {size}"
 
-#: src/gui/MainWindow.py:36
+#: src/gui/MainWindow.py:37
 msgid "Backup Tool Settings"
 msgstr "Настройки копирования"
 
-#: src/gui/MainWindow.py:51
+#: src/gui/MainWindow.py:59
 msgid "Backup target:"
 msgstr "Папка назначения:"
 
-#: src/gui/MainWindow.py:78
+#: src/gui/MainWindow.py:92
 msgid "Sources:"
 msgstr "Источники:"
 
-#: src/gui/MainWindow.py:82
+#: src/gui/MainWindow.py:103
 msgid "+ Add source"
 msgstr "+ Добавить источник"
 
-#: src/gui/MainWindow.py:83
+#: src/gui/MainWindow.py:104
 msgid "– Delete"
 msgstr "– Удалить"
 
-#: src/gui/MainWindow.py:84
+#: src/gui/MainWindow.py:105
 msgid "Clear"
 msgstr "Очистить"
 
-#: src/gui/MainWindow.py:94 src/gui/MainWindow.py:237
+#: src/gui/MainWindow.py:117 src/gui/MainWindow.py:351
 msgid "Exclusions for source:"
 msgstr "Исключения для источника:"
 
-#: src/gui/MainWindow.py:109
+#: src/gui/MainWindow.py:134
 msgid "Schedule"
 msgstr "Расписание"
 
-#: src/gui/MainWindow.py:113
+#: src/gui/MainWindow.py:138
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
 
-#: src/gui/MainWindow.py:114
+#: src/gui/MainWindow.py:139
 msgid "Weekly (Mon at 03:00)"
 msgstr "Каждую неделю (Пн в 03:00)"
 
-#: src/gui/MainWindow.py:115
+#: src/gui/MainWindow.py:140
 msgid "On logon"
 msgstr "При входе в систему"
 
-#: src/gui/MainWindow.py:116
+#: src/gui/MainWindow.py:141
 msgid "On idle (20 min)"
 msgstr "В простое (20 мин)"
 
-#: src/gui/MainWindow.py:117
+#: src/gui/MainWindow.py:142
 msgid "On unlock"
 msgstr "При разблокировке"
 
-#: src/gui/MainWindow.py:133
+#: src/gui/MainWindow.py:158
 msgid "Background run"
 msgstr "Настройки запуска"
 
-#: src/gui/MainWindow.py:137
+#: src/gui/MainWindow.py:169
 msgid "Wait before closing console window"
 msgstr "Ждать перед закрытием консоли"
 
-#: src/gui/MainWindow.py:138
+#: src/gui/MainWindow.py:170
 msgid "Show console progress"
 msgstr "Показывать прогресс в консоли"
 
-#: src/gui/MainWindow.py:139
+#: src/gui/MainWindow.py:171
 msgid "Show tray icon while backing up"
 msgstr "Показывать значок в трее во время копирования"
 
-#: src/gui/MainWindow.py:140
+#: src/gui/MainWindow.py:172
 msgid "Show floating bubble when finished"
 msgstr "Показывать всплывающее уведомление после завершения"
 
-#: src/gui/MainWindow.py:149
+#: src/gui/MainWindow.py:181
 msgid "Version history"
 msgstr "История версий"
 
-#: src/gui/MainWindow.py:153
+#: src/gui/MainWindow.py:185
 msgid "Keep:"
 msgstr "Хранить:"
 
-#: src/gui/MainWindow.py:172
+#: src/gui/MainWindow.py:190 src/gui/MainWindow.py:194
+msgid "Unlimited"
+msgstr "Без лимита"
+
+#: src/gui/MainWindow.py:230
+msgid "Save settings"
+msgstr "Сохранить настройки"
+
+#: src/gui/MainWindow.py:232
 msgid "Reload saved"
 msgstr "Загрузить сохранённое"
 
-#: src/gui/MainWindow.py:154 src/gui/MainWindow.py:297
-#: src/gui/MainWindow.py:309
-msgid "Restore"
-msgstr "Восстановить"
-
-#: src/gui/MainWindow.py:190
-msgid "Restore version"
-msgstr "Восстановить версию"
-
-#: src/gui/MainWindow.py:156
-msgid "Run backup"
-msgstr "Сделать копию"
-
-#: src/gui/MainWindow.py:158
+#: src/gui/MainWindow.py:234
 msgid "Exit"
 msgstr "Выход"
 
-#: src/gui/MainWindow.py:212
+#: src/gui/MainWindow.py:245
+msgid "Restore version"
+msgstr "Восстановить версию"
+
+#: src/gui/MainWindow.py:247
+msgid "Run backup"
+msgstr "Сделать копию"
+
+#: src/gui/MainWindow.py:249
+msgid "Last backup:"
+msgstr "Последний бекап:"
+
+#: src/gui/MainWindow.py:326
 msgid "Select target directory"
 msgstr "Выберите папку назначения"
 
-#: src/gui/MainWindow.py:218
+#: src/gui/MainWindow.py:332
 msgid "Add source directory"
 msgstr "Добавить папку источника"
 
-#: src/gui/MainWindow.py:240
+#: src/gui/MainWindow.py:354
 #, python-brace-format
 msgid "Exclusions for: {source}"
 msgstr "Исключения для: {source}"
 
-#: src/gui/MainWindow.py:256 src/gui/MainWindow.py:278
-#: src/gui/MainWindow.py:287 src/gui/RestoreDialog.py:134
-#: src/gui/RestoreDialog.py:138
+#: src/gui/MainWindow.py:370 src/gui/MainWindow.py:393
+#: src/gui/MainWindow.py:402 src/gui/MainWindow.py:533
+#: src/gui/MainWindow.py:540 src/gui/RestoreDialog.py:137
+#: src/gui/RestoreDialog.py:141
 msgid "Error"
 msgstr "Ошибка"
 
-#: src/gui/MainWindow.py:256 src/gui/MainWindow.py:287
+#: src/gui/MainWindow.py:370 src/gui/MainWindow.py:402
 msgid "Please specify the target directory"
 msgstr "Укажите папку назначения"
 
-#: src/gui/MainWindow.py:272
+#: src/gui/MainWindow.py:387
 msgid "Saved"
 msgstr "Сохранено"
 
-#: src/gui/MainWindow.py:181
-msgid "Save settings"
-msgstr "Сохранить настройки"
-
-#: src/gui/MainWindow.py:197
-msgid "Last backup:"
-msgstr "Последний бекап:"
-
-#: src/gui/MainWindow.py:401
-msgid "Size: calculating…"
-msgstr "Размер: расчёт…"
-
-#: src/gui/MainWindow.py:409
-#, python-brace-format
-msgid "Size: {size}"
-msgstr "Размер: {size}"
-
-#: src/gui/MainWindow.py:278
+#: src/gui/MainWindow.py:393
 msgid "No settings found"
 msgstr "Настройки не найдены"
 
-#: src/gui/MainWindow.py:309
-msgid "Settings reloaded"
-msgstr "Настройки перезагружены"
-
-#: src/gui/MainWindow.py:384
+#: src/gui/MainWindow.py:397
 msgid "Loaded"
 msgstr "Загр."
 
-#: src/gui/MainWindow.py:190
-msgid "Status:"
-msgstr "Статус:"
+#: src/gui/MainWindow.py:412 src/gui/MainWindow.py:424
+msgid "Restore"
+msgstr "Восстановить"
 
-#: src/gui/MainWindow.py:297
+#: src/gui/MainWindow.py:412
 msgid "No backup versions found"
 msgstr "Версии бэкапа не найдены"
 
-#: src/gui/MainWindow.py:309
+#: src/gui/MainWindow.py:424
 msgid "Nothing to restore for the selected version"
 msgstr "Для выбранной версии нечего восстанавливать"
 
-#: src/gui/MainWindow.py:313
+#: src/gui/MainWindow.py:428
 #, python-brace-format
 msgid ""
 "Apply selected restore changes? Create: {create}, replace: {replace}, "
@@ -450,58 +456,33 @@ msgstr ""
 "Применить выбранные изменения восстановления? Создать: {create}, "
 "заменить: {replace}, удалить: {delete}."
 
-#: src/gui/MainWindow.py:320 src/gui/MainWindow.py:333
+#: src/gui/MainWindow.py:435 src/gui/MainWindow.py:448
 msgid "Confirm restore"
 msgstr "Подтвердите восстановление"
 
-#: src/gui/MainWindow.py:328
+#: src/gui/MainWindow.py:443
 #, python-brace-format
 msgid "Export selected full-version files to the output folder? Files: {count}."
 msgstr ""
 "Экспортировать выбранные файлы полной версии в выходную папку? Файлов: "
 "{count}."
 
-#: src/gui/MainWindow.py:343
-msgid "Restoring…"
-msgstr "Восстановление…"
+#: src/gui/MainWindow.py:478
+msgid "Size: calculating…"
+msgstr "Размер: расчёт…"
 
-#: src/gui/MainWindow.py:363
-msgid "Calculating size…"
-msgstr "Подсчёт размера…"
-
-#: src/gui/MainWindow.py:372
+#: src/gui/MainWindow.py:487
 #, python-brace-format
-msgid "Estimated backup size: {size}"
-msgstr "Оценочный размер копии: {size}"
+msgid "Size: {size}"
+msgstr "Размер: {size}"
 
-#: src/gui/MainWindow.py:378
-msgid "Backing up…"
-msgstr "Копирование…"
+#: src/gui/MainWindow.py:528
+msgid "never"
+msgstr ""
 
-#: src/gui/MainWindow.py:402
-#, python-brace-format
-msgid "Last successful backup: {ts}"
-msgstr "Последний успешный бэкап: {ts}"
-
-#: src/gui/MainWindow.py:404
-msgid "Last successful backup: never"
-msgstr "Последний успешный бэкап: никогда"
-
-#: src/gui/MainWindow.py:410
+#: src/gui/MainWindow.py:533 src/gui/MainWindow.py:540
 msgid "Done"
 msgstr "Готово"
-
-#: src/gui/MainWindow.py:410
-msgid "Finished with errors"
-msgstr "Завершено с ошибками"
-
-#: src/gui/MainWindow.py:417
-msgid "Restore completed"
-msgstr "Восстановление завершено"
-
-#: src/gui/MainWindow.py:417
-msgid "Restore finished with errors"
-msgstr "Восстановление завершено с ошибками"
 
 #: src/gui/RestoreDialog.py:28
 msgid "Restore backup"
@@ -575,53 +556,76 @@ msgstr "Снять выбор"
 msgid "Refresh diff"
 msgstr "Обновить разницу"
 
-#: src/gui/RestoreDialog.py:123
+#: src/gui/RestoreDialog.py:113 src/gui/RestoreDialog.py:191
+#: src/gui/RestoreDialog.py:209 src/gui/RestoreDialog.py:217
+msgid "Delete version"
+msgstr "Удалить версию"
+
+#: src/gui/RestoreDialog.py:126
 msgid "Apply selected"
 msgstr "Применить выбранное"
 
-#: src/gui/RestoreDialog.py:134
+#: src/gui/RestoreDialog.py:137
 msgid "No restore plan is available"
 msgstr "План восстановления недоступен"
 
-#: src/gui/RestoreDialog.py:138
+#: src/gui/RestoreDialog.py:141
 msgid "Select at least one change to apply"
 msgstr "Выберите хотя бы одно изменение для применения"
 
-#: src/gui/RestoreDialog.py:154
+#: src/gui/RestoreDialog.py:157
 msgid "Select version to see restore preview"
 msgstr "Выберите версию, чтобы увидеть предпросмотр восстановления"
 
-#: src/gui/RestoreDialog.py:160
+#: src/gui/RestoreDialog.py:163
 msgid "Select output folder to preview the full selected version"
 msgstr "Выберите выходную папку, чтобы увидеть полную выбранную версию"
 
-#: src/gui/RestoreDialog.py:175
+#: src/gui/RestoreDialog.py:178
 #, python-brace-format
 msgid "Could not build restore diff: {exc}"
 msgstr "Не удалось построить разницу восстановления: {exc}"
 
-#: src/gui/RestoreDialog.py:239
+#: src/gui/RestoreDialog.py:193
+msgid ""
+"Delete selected backup version? The latest mirror stays untouched; only "
+"this restore point and unused archived files are removed."
+msgstr ""
+"Удалить выбранную версию бекапа? Актуальное зеркало останется нетронутым;"
+" будут удалены только эта точка восстановления и неиспользуемые архивные "
+"файлы."
+
+#: src/gui/RestoreDialog.py:210
+#, python-brace-format
+msgid "Could not delete backup version: {exc}"
+msgstr "Не удалось удалить версию бекапа: {exc}"
+
+#: src/gui/RestoreDialog.py:217
+msgid "No backup versions left"
+msgstr "Версий бекапа не осталось"
+
+#: src/gui/RestoreDialog.py:293
 msgid "Select export folder"
 msgstr "Выберите папку экспорта"
 
-#: src/gui/RestoreDialog.py:285
+#: src/gui/RestoreDialog.py:339
 msgid "Current file is newer than the selected version"
 msgstr "Текущий файл новее выбранной версии"
 
-#: src/gui/RestoreDialog.py:333
+#: src/gui/RestoreDialog.py:387
 msgid "No files in this selected version and scope"
 msgstr "В выбранной версии и области нет файлов"
 
-#: src/gui/RestoreDialog.py:334
+#: src/gui/RestoreDialog.py:388
 msgid "No patch is needed for this version and scope"
 msgstr "Для этой версии и области патч не нужен"
 
-#: src/gui/RestoreDialog.py:336
+#: src/gui/RestoreDialog.py:390
 #, python-brace-format
 msgid "Full version export from all configured sources: {export} files"
 msgstr "Экспорт полной версии из всех настроенных источников: {export} файлов"
 
-#: src/gui/RestoreDialog.py:338
+#: src/gui/RestoreDialog.py:392
 #, python-brace-format
 msgid ""
 "Patch original files from all configured sources: create {create}, "
@@ -630,93 +634,50 @@ msgstr ""
 "Патч исходных файлов из всех настроенных источников: создать {create}, "
 "заменить {replace}, удалить {delete}, конфликты {conflicts}"
 
-#: src/gui/RestoreDialog.py:349
+#: src/gui/RestoreDialog.py:403
 msgid "Create"
 msgstr "Создать"
 
-#: src/gui/RestoreDialog.py:350
+#: src/gui/RestoreDialog.py:404
 msgid "Replace"
 msgstr "Заменить"
 
-#: src/gui/RestoreDialog.py:351
+#: src/gui/RestoreDialog.py:405
 msgid "Delete"
 msgstr "Удалить"
 
-#: src/gui/RestoreDialog.py:352
+#: src/gui/RestoreDialog.py:406
 msgid "Export"
 msgstr "Экспорт"
 
-#: src/gui/RestoreDialog.py:358
+#: src/gui/RestoreDialog.py:412
 msgid "Conflict"
 msgstr "Конфликт"
 
-#: src/gui/RestoreDialog.py:365
+#: src/gui/RestoreDialog.py:419
 msgid "Missing"
 msgstr "Отсутствует"
 
-#: src/gui/RestoreDialog.py:369
+#: src/gui/RestoreDialog.py:423
 msgid "Existing"
 msgstr "Существует"
 
-#: src/gui/RestoreDialog.py:374
+#: src/gui/RestoreDialog.py:428
 msgid "Output file will be written"
 msgstr "Выходной файл будет записан"
 
-#: src/gui/RestoreDialog.py:382
+#: src/gui/RestoreDialog.py:436
 msgid "Absent"
 msgstr "Отсутствует"
 
-#: src/gui/RestoreDialog.py:383
+#: src/gui/RestoreDialog.py:437
 msgid "Selected file"
 msgstr "Выбранный файл"
 
-#: src/gui/RestoreDialog.py:408
+#: src/gui/RestoreDialog.py:462
 #, python-brace-format
 msgid "Conflicts: {count}"
 msgstr "Конфликтов: {count}"
-
-#: src/gui/RestoreDialog.py:112
-msgid "Delete version"
-msgstr "Удалить версию"
-
-#: src/gui/RestoreDialog.py:181
-msgid ""
-"Delete selected backup version? The latest mirror stays untouched; only this "
-"restore point and unused archived files are removed."
-msgstr ""
-"Удалить выбранную версию бекапа? Актуальное зеркало останется нетронутым; "
-"будут удалены только эта точка восстановления и неиспользуемые архивные файлы."
-
-#: src/gui/RestoreDialog.py:197
-#, python-brace-format
-msgid "Could not delete backup version: {exc}"
-msgstr "Не удалось удалить версию бекапа: {exc}"
-
-#: src/gui/RestoreDialog.py:204
-msgid "No backup versions left"
-msgstr "Версий бекапа не осталось"
-
-#: src/copier.py:85
-#, python-brace-format
-msgid "⚠️ Could not prune old backup versions: {exc}"
-msgstr "⚠️ Не удалось удалить старые версии бекапа: {exc}"
-
-#: src/copier.py:90
-#, python-brace-format
-msgid "🧹 Removed old backup versions: {runs}; freed {bytes} bytes in {files} files"
-msgstr "🧹 Удалены старые версии бекапа: {runs}; освобождено {bytes} байт в {files} файлах"
-
-#: src/gui/MainWindow.py:146
-msgid "Keep backup versions:"
-msgstr "Хранить версий бекапа:"
-
-#: src/gui/MainWindow.py:149
-msgid "Unlimited"
-msgstr "Без лимита"
-
-#: src/gui/MainWindow.py:150
-msgid " versions"
-msgstr " версий"
 
 #~ msgid "Restore will replace files in their original locations. Continue?"
 #~ msgstr "Восстановление заменит файлы в исходных расположениях. Продолжить?"
@@ -795,3 +756,43 @@ msgstr " версий"
 
 #~ msgid "modified {mtime}"
 #~ msgstr "изменён {mtime}"
+
+#~ msgid "Settings reloaded"
+#~ msgstr "Настройки перезагружены"
+
+#~ msgid "Status:"
+#~ msgstr "Статус:"
+
+#~ msgid "Restoring…"
+#~ msgstr "Восстановление…"
+
+#~ msgid "Calculating size…"
+#~ msgstr "Подсчёт размера…"
+
+#~ msgid "Estimated backup size: {size}"
+#~ msgstr "Оценочный размер копии: {size}"
+
+#~ msgid "Backing up…"
+#~ msgstr "Копирование…"
+
+#~ msgid "Last successful backup: {ts}"
+#~ msgstr "Последний успешный бэкап: {ts}"
+
+#~ msgid "Last successful backup: never"
+#~ msgstr "Последний успешный бэкап: никогда"
+
+#~ msgid "Finished with errors"
+#~ msgstr "Завершено с ошибками"
+
+#~ msgid "Restore completed"
+#~ msgstr "Восстановление завершено"
+
+#~ msgid "Restore finished with errors"
+#~ msgstr "Восстановление завершено с ошибками"
+
+#~ msgid "Keep backup versions:"
+#~ msgstr "Хранить версий бекапа:"
+
+#~ msgid " versions"
+#~ msgstr " версий"
+

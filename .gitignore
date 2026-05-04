@@ -14,6 +14,7 @@ dist/
 *.egg-info/
 *.egg
 *.spec
+!BackupTool.spec
 MANIFEST
 develop-eggs/
 downloads/
@@ -51,6 +52,7 @@ coverage.xml
 # Logs and local settings
 *.log
 local_settings.py
+src/_version_generated.py
 
 # Databases
 db.sqlite3*

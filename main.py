@@ -1,5 +1,6 @@
 import argparse
 
+from src.app_version import VERSION
 from src.i18n import _
 from src.utils import is_admin, _hide_console
 
@@ -24,13 +25,25 @@ def main() -> None:
         metavar="[LOG_PATH]",
         help=_("Enable debug traversal log (optional path)")
     )
+    p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
+    p.add_argument("--background-update", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--parent-pid", type=int, default=0, help=argparse.SUPPRESS)
+    p.add_argument("--target-exe", default="", help=argparse.SUPPRESS)
+    p.add_argument("--current-version", default=VERSION, help=argparse.SUPPRESS)
 
     args = p.parse_args()
 
+    if args.background_update:
+        from src.updater import run_background_update
+
+        raise SystemExit(run_background_update(args.parent_pid, args.target_exe, args.current_version))
+
     if args.backup:
+        from src.updater import start_background_updater
         from src.config import Settings
         from src.copier import run_backup
 
+        start_background_updater(VERSION)
         cfg = Settings.load()
         if not cfg:
             raise SystemExit(_("No saved configuration, run GUI first."))
@@ -56,7 +69,10 @@ def main() -> None:
                 elevate(show_console=args.dev)
         except ImportError:
             pass
+        from src.updater import start_background_updater
         from src.gui import open_gui
+
+        start_background_updater(VERSION)
         _hide_console()
         open_gui(debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
 

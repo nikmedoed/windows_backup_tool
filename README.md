@@ -44,6 +44,8 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Optional spinner in the Windows tray while scheduled backups run silently, so games stay fullscreen without stray consoles.
 - **Floating overlay**  
   A small translucent bubble can pop up (configurable) when backups finish, providing feedback without minimizing full-screen apps.
+- **Automatic executable updates**  
+  Frozen `.exe` builds quietly check GitHub Releases in the background and replace themselves after the current app process exits.
 - **Zero‑install**  
   Just run the `.exe` or Python script—no installer needed.
 
@@ -156,6 +158,23 @@ Launch GUI with a visible console window (for debugging):
 python main.py --dev
 ```
 
+## Automatic Updates
+
+Standalone `.exe` builds check the latest release at:
+
+```text
+https://github.com/nikmedoed/windows_backup_tool/releases/latest
+```
+
+The updater is intentionally quiet:
+
+- it runs only for frozen Windows executables, not during normal `python main.py` development runs;
+- it checks at most once every 12 hours, with a shorter retry backoff after network errors;
+- it downloads the `BackupTool.exe` release asset in a detached helper process, so GUI and scheduled `--backup` runs are not delayed;
+- it keeps the downloaded update under `%APPDATA%\BackupTool\updates`;
+- it replaces the running executable only after the parent process exits, because Windows locks active `.exe` files;
+- if replacement fails because another instance is still running, the staged update remains and is retried on a later launch.
+
 > Note: Backup change detection stores SHA‑1 hashes in the version index. Normal
 > no-change runs compare the source file with the indexed hash instead of
 > reading both the source and mirror copies.
@@ -195,11 +214,24 @@ To update:
 Generate a standalone `.exe`:
 
 ```bash
-pyinstaller --onefile --uac-admin --name BackupTool --add-data "locales;locales" --add-data "icon;icon" --icon icon/icon.ico main.py
+python scripts/write_version.py --print
+pyinstaller BackupTool.spec --noconfirm
 ```
 
 > `--uac-admin`: requests elevated privileges when launched  
 > Result is saved in `dist/BackupTool.exe`.
+> The build writes `src/_version_generated.py` from `git describe --tags --dirty --always`, so the frozen executable carries the tag-derived version even when it later runs outside a git checkout.
+
+## Release Build
+
+Pushing a version tag starts the GitHub Actions release workflow:
+
+```powershell
+git tag v0.2.2
+git push origin v0.2.2
+```
+
+The workflow builds `BackupTool.exe` on `windows-latest`, uploads it as a workflow artifact, and attaches it to the GitHub Release for that tag. The release asset name stays `BackupTool.exe`, which is what the automatic updater downloads.
 
 ## Logs
 

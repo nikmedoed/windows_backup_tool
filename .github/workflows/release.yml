@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest tests.test_updater tests.test_versioned_backup
+
+      - name: Verify tag-derived version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = (python scripts/write_version.py --print).Trim()
+          if ($version -ne "${{ github.ref_name }}") {
+            throw "Generated version '$version' does not match tag '${{ github.ref_name }}'"
+          }
+
+      - name: Build executable
+        run: python -m PyInstaller BackupTool.spec --noconfirm
+
+      - name: Check build output
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist\BackupTool.exe")) {
+            throw "dist\BackupTool.exe was not created"
+          }
+          Get-Item "dist\BackupTool.exe" | Select-Object FullName, Length, LastWriteTime
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BackupTool-${{ github.run_number }}
+          path: dist/BackupTool.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title $tag --notes "Automated build for $tag"
+          }
+          gh release upload $tag "dist\BackupTool.exe" --repo $env:GITHUB_REPOSITORY --clobber
