@@ -5,9 +5,17 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, for example v0.3.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   build-windows:
@@ -19,6 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,12 +44,11 @@ jobs:
         run: python -m unittest tests.test_updater tests.test_versioned_backup
 
       - name: Verify tag-derived version
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
           $version = (python scripts/write_version.py --print).Trim()
-          if ($version -ne "${{ github.ref_name }}") {
-            throw "Generated version '$version' does not match tag '${{ github.ref_name }}'"
+          if ($version -ne "${{ env.RELEASE_TAG }}") {
+            throw "Generated version '$version' does not match tag '${{ env.RELEASE_TAG }}'"
           }
 
       - name: Build executable
@@ -62,12 +70,11 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release asset
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ env.RELEASE_TAG }}"
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --repo $env:GITHUB_REPOSITORY --title $tag --notes "Automated build for $tag"
