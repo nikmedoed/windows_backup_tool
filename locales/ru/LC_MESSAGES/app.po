@@ -510,6 +510,11 @@ msgstr "Размер: расчёт…"
 msgid "Size: {size}"
 msgstr "Размер: {size}"
 
+#: src/gui/MainWindow.py:525
+#, python-brace-format
+msgid "Backup Tool version: {version}"
+msgstr "Версия Backup Tool: {version}"
+
 #: src/gui/MainWindow.py:528
 msgid "never"
 msgstr ""

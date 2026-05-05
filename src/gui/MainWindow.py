@@ -8,6 +8,7 @@ from typing import Optional
 from PySide6 import QtWidgets, QtCore, QtGui
 from PySide6.QtWidgets import QSizePolicy
 
+from src.app_version import VERSION
 from src.config import Settings, PathRule
 from src.copier import run_backup
 from src.i18n import _
@@ -44,6 +45,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logAppended.connect(self._append_log)
         self.backupFinished.connect(self._on_backup_finished)
         self.restoreFinished.connect(self._on_restore_finished)
+        self._append_startup_log()
 
     def _build_ui(self):
         cw = QtWidgets.QWidget()
@@ -454,7 +456,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ) != QtWidgets.QMessageBox.StandardButton.Yes:
                 return
 
-        self.txt_log.clear()
+        self._reset_log()
         self.progress_bar.setValue(0)
         self.backup_status_label.setText("...")
         self.btn_run.setEnabled(False)
@@ -489,7 +491,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
     def _run(self):
-        self.txt_log.clear()
+        self._reset_log()
         self.progress_bar.setValue(0)
         self.backup_status_label.setText("...")
         self.btn_run.setEnabled(False)
@@ -516,6 +518,13 @@ class MainWindow(QtWidgets.QMainWindow):
         cursor.insertHtml(_format_log_entry(message))
         self.txt_log.setTextCursor(cursor)
         self.txt_log.ensureCursorVisible()
+
+    def _append_startup_log(self):
+        self._append_log(_("Backup Tool version: {version}").format(version=VERSION))
+
+    def _reset_log(self):
+        self.txt_log.clear()
+        self._append_startup_log()
 
     def _update_last_success_label(self):
         if self.cfg.last_success:
