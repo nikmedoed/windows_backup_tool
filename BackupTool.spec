@@ -6,6 +6,11 @@ from pathlib import Path
 
 ROOT = Path(SPECPATH)
 subprocess.run([sys.executable, str(ROOT / 'scripts' / 'write_version.py')], check=True, cwd=ROOT)
+subprocess.run(
+    [sys.executable, '-m', 'babel.messages.frontend', 'compile', '-d', 'locales', '-D', 'app'],
+    check=True,
+    cwd=ROOT,
+)
 
 a = Analysis(
     ['main.py'],

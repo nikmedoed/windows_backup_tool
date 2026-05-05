@@ -262,13 +262,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setFixedHeight(10)
         self.progress_bar.setTextVisible(False)
-        self.txt_log = QtWidgets.QTextEdit(readOnly=True)
+        self.txt_log = QtWidgets.QTextBrowser()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setOpenExternalLinks(True)
         self.txt_log.setMinimumHeight(130)
         self.txt_log.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.WidgetWidth)
         self.txt_log.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.txt_log.setUndoRedoEnabled(False)
         self.txt_log.setStyleSheet(
-            "QTextEdit {"
+            "QTextEdit, QTextBrowser {"
             "  background: #111317;"
             "  color: #d7dce5;"
             "  border: 1px solid #2b3038;"
@@ -521,6 +523,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _append_startup_log(self):
         self._append_log(_("Backup Tool version: {version}").format(version=VERSION))
+        self._append_log(
+            _("Author: Muromtsev Nikita. Other useful utilities and support the author: {url}")
+            .format(url="https://nikmedoed.com/")
+        )
 
     def _reset_log(self):
         self.txt_log.clear()
@@ -603,6 +609,14 @@ def _log_style(level: str) -> tuple[str, str, str, str]:
 def _format_log_body(message: str) -> str:
     if not message:
         return ""
+    if "https://nikmedoed.com/" in message:
+        prefix, url, suffix = message.partition("https://nikmedoed.com/")
+        href = escape(url, quote=True)
+        return (
+            f"{_log_text(prefix)}"
+            f"<a href='{href}' style='color:#8ab4f8; text-decoration:underline;'>{_log_text(url)}</a>"
+            f"{_log_text(suffix)}"
+        )
     if "|" in message and ":" in message:
         parts = [part.strip() for part in message.split("|") if part.strip()]
         return " ".join(_log_chip(part) for part in parts)
