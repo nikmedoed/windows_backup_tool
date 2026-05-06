@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: muromcevn@gmail.com\n"
-"POT-Creation-Date: 2026-05-06 22:32+0400\n"
+"POT-Creation-Date: 2026-05-06 23:18+0400\n"
 "PO-Revision-Date: 2025-04-28 16:12+0400\n"
 "Last-Translator: Nikita Muromtsev <muromcevn@gmail.com>\n"
 "Language: ru\n"
@@ -40,7 +40,7 @@ msgstr "Включить отладочный лог обхода (необяз�
 msgid "No saved configuration, run GUI first."
 msgstr "Конфигурация не найдена, запустите графический интерфейс."
 
-#: main.py:58
+#: main.py:63
 #, python-brace-format
 msgid "Tray icon mode failed ({exc}). Falling back to console output."
 msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
@@ -254,28 +254,28 @@ msgstr "❗ Ошибка удаления {dst} ({exc})"
 msgid "⚠️ Errors logged in: {0}"
 msgstr "⚠️ Ошибки записаны в: {0}"
 
-#: src/tray.py:122
+#: src/tray.py:123
 msgid "Starting backup…"
 msgstr "Запуск копирования…"
 
-#: src/tray.py:184
+#: src/tray.py:185
 #, python-brace-format
 msgid "Backup in progress ({pct}%)"
 msgstr "Копирование выполняется ({pct}%)"
 
-#: src/tray.py:193
+#: src/tray.py:194
 msgid "Backup completed"
 msgstr "Копирование завершено"
 
-#: src/tray.py:193
+#: src/tray.py:194
 msgid "Backup failed"
 msgstr "Копирование завершилось неудачно"
 
-#: src/tray.py:194
+#: src/tray.py:195
 msgid "Done. You can close this notification."
 msgstr "Готово. Можно закрыть уведомление."
 
-#: src/tray.py:194
+#: src/tray.py:195
 msgid "Check logs for details."
 msgstr "Проверьте логи для подробностей."
 
@@ -460,8 +460,8 @@ msgstr "Исключения для: {source}"
 
 #: src/gui/MainWindow.py:435 src/gui/MainWindow.py:458
 #: src/gui/MainWindow.py:467 src/gui/MainWindow.py:610
-#: src/gui/MainWindow.py:617 src/gui/RestoreDialog.py:137
-#: src/gui/RestoreDialog.py:141
+#: src/gui/MainWindow.py:617 src/gui/RestoreDialog.py:145
+#: src/gui/RestoreDialog.py:149
 msgid "Error"
 msgstr "Ошибка"
 
@@ -542,109 +542,109 @@ msgstr ""
 msgid "Done"
 msgstr "Готово"
 
-#: src/gui/RestoreDialog.py:28
+#: src/gui/RestoreDialog.py:32
 msgid "Restore backup"
 msgstr "Восстановить бэкап"
 
-#: src/gui/RestoreDialog.py:51
+#: src/gui/RestoreDialog.py:59
 msgid "Version:"
 msgstr "Версия:"
 
-#: src/gui/RestoreDialog.py:54
+#: src/gui/RestoreDialog.py:62
 msgid "Original folders: apply patch only"
 msgstr "Исходные папки: применить только патч"
 
-#: src/gui/RestoreDialog.py:55
+#: src/gui/RestoreDialog.py:63
 msgid "Selected folder: restore full version"
 msgstr "Выбранная папка: восстановить полную версию"
 
-#: src/gui/RestoreDialog.py:57
+#: src/gui/RestoreDialog.py:65
 msgid "Restore to:"
 msgstr "Куда восстановить:"
 
-#: src/gui/RestoreDialog.py:63
+#: src/gui/RestoreDialog.py:71
 msgid "Folder..."
 msgstr "Папка..."
 
-#: src/gui/RestoreDialog.py:66
+#: src/gui/RestoreDialog.py:74
 msgid "Output folder:"
 msgstr "Выходная папка:"
 
-#: src/gui/RestoreDialog.py:77
+#: src/gui/RestoreDialog.py:85
 msgid "Apply"
 msgstr "Применить"
 
-#: src/gui/RestoreDialog.py:78
+#: src/gui/RestoreDialog.py:86
 msgid "Issue"
 msgstr "Проблема"
 
-#: src/gui/RestoreDialog.py:79
+#: src/gui/RestoreDialog.py:87
 msgid "Action"
 msgstr "Действие"
 
-#: src/gui/RestoreDialog.py:80
+#: src/gui/RestoreDialog.py:88
 msgid "File"
 msgstr "Файл"
 
-#: src/gui/RestoreDialog.py:81
+#: src/gui/RestoreDialog.py:89
 msgid "Current size"
 msgstr "Текущий размер"
 
-#: src/gui/RestoreDialog.py:82
+#: src/gui/RestoreDialog.py:90
 msgid "Current modified"
 msgstr "Текущая дата"
 
-#: src/gui/RestoreDialog.py:83
+#: src/gui/RestoreDialog.py:91
 msgid "Selected size"
 msgstr "Размер версии"
 
-#: src/gui/RestoreDialog.py:84
+#: src/gui/RestoreDialog.py:92
 msgid "Selected modified"
 msgstr "Дата версии"
 
-#: src/gui/RestoreDialog.py:107
+#: src/gui/RestoreDialog.py:115
 msgid "Select all"
 msgstr "Выбрать всё"
 
-#: src/gui/RestoreDialog.py:109
+#: src/gui/RestoreDialog.py:117
 msgid "Select none"
 msgstr "Снять выбор"
 
-#: src/gui/RestoreDialog.py:111
+#: src/gui/RestoreDialog.py:119
 msgid "Refresh diff"
 msgstr "Обновить разницу"
 
-#: src/gui/RestoreDialog.py:113 src/gui/RestoreDialog.py:191
-#: src/gui/RestoreDialog.py:209 src/gui/RestoreDialog.py:217
+#: src/gui/RestoreDialog.py:121 src/gui/RestoreDialog.py:218
+#: src/gui/RestoreDialog.py:236 src/gui/RestoreDialog.py:244
 msgid "Delete version"
 msgstr "Удалить версию"
 
-#: src/gui/RestoreDialog.py:126
+#: src/gui/RestoreDialog.py:134
 msgid "Apply selected"
 msgstr "Применить выбранное"
 
-#: src/gui/RestoreDialog.py:137
+#: src/gui/RestoreDialog.py:145
 msgid "No restore plan is available"
 msgstr "План восстановления недоступен"
 
-#: src/gui/RestoreDialog.py:141
+#: src/gui/RestoreDialog.py:149
 msgid "Select at least one change to apply"
 msgstr "Выберите хотя бы одно изменение для применения"
 
-#: src/gui/RestoreDialog.py:157
+#: src/gui/RestoreDialog.py:165
 msgid "Select version to see restore preview"
 msgstr "Выберите версию, чтобы увидеть предпросмотр восстановления"
 
-#: src/gui/RestoreDialog.py:163
+#: src/gui/RestoreDialog.py:171
 msgid "Select output folder to preview the full selected version"
 msgstr "Выберите выходную папку, чтобы увидеть полную выбранную версию"
 
-#: src/gui/RestoreDialog.py:178
+#: src/gui/RestoreDialog.py:203 src/gui/RestoreDialog.py:207
 #, python-brace-format
 msgid "Could not build restore diff: {exc}"
 msgstr "Не удалось построить разницу восстановления: {exc}"
 
-#: src/gui/RestoreDialog.py:193
+#: src/gui/RestoreDialog.py:220
 msgid ""
 "Delete selected backup version? The latest mirror stays untouched; only "
 "this restore point and unused archived files are removed."
@@ -653,37 +653,46 @@ msgstr ""
 " будут удалены только эта точка восстановления и неиспользуемые архивные "
 "файлы."
 
-#: src/gui/RestoreDialog.py:210
+#: src/gui/RestoreDialog.py:237
 #, python-brace-format
 msgid "Could not delete backup version: {exc}"
 msgstr "Не удалось удалить версию бекапа: {exc}"
 
-#: src/gui/RestoreDialog.py:217
+#: src/gui/RestoreDialog.py:244
 msgid "No backup versions left"
 msgstr "Версий бекапа не осталось"
 
-#: src/gui/RestoreDialog.py:293
+#: src/gui/RestoreDialog.py:286
+#, python-brace-format
+msgid "Showing first {shown} files; hidden files remain selected by default."
+msgstr "Показаны первые {shown} файлов; скрытые файлы остаются выбранными по умолчанию."
+
+#: src/gui/RestoreDialog.py:307
+msgid "Building restore preview..."
+msgstr "Построение предпросмотра восстановления..."
+
+#: src/gui/RestoreDialog.py:367
 msgid "Select export folder"
 msgstr "Выберите папку экспорта"
 
-#: src/gui/RestoreDialog.py:339
+#: src/gui/RestoreDialog.py:413
 msgid "Current file is newer than the selected version"
 msgstr "Текущий файл новее выбранной версии"
 
-#: src/gui/RestoreDialog.py:387
+#: src/gui/RestoreDialog.py:461
 msgid "No files in this selected version and scope"
 msgstr "В выбранной версии и области нет файлов"
 
-#: src/gui/RestoreDialog.py:388
+#: src/gui/RestoreDialog.py:462
 msgid "No patch is needed for this version and scope"
 msgstr "Для этой версии и области патч не нужен"
 
-#: src/gui/RestoreDialog.py:390
+#: src/gui/RestoreDialog.py:464
 #, python-brace-format
 msgid "Full version export from all configured sources: {export} files"
 msgstr "Экспорт полной версии из всех настроенных источников: {export} файлов"
 
-#: src/gui/RestoreDialog.py:392
+#: src/gui/RestoreDialog.py:466
 #, python-brace-format
 msgid ""
 "Patch original files from all configured sources: create {create}, "
@@ -692,47 +701,47 @@ msgstr ""
 "Патч исходных файлов из всех настроенных источников: создать {create}, "
 "заменить {replace}, удалить {delete}, конфликты {conflicts}"
 
-#: src/gui/RestoreDialog.py:403
+#: src/gui/RestoreDialog.py:477
 msgid "Create"
 msgstr "Создать"
 
-#: src/gui/RestoreDialog.py:404
+#: src/gui/RestoreDialog.py:478
 msgid "Replace"
 msgstr "Заменить"
 
-#: src/gui/RestoreDialog.py:405
+#: src/gui/RestoreDialog.py:479
 msgid "Delete"
 msgstr "Удалить"
 
-#: src/gui/RestoreDialog.py:406
+#: src/gui/RestoreDialog.py:480
 msgid "Export"
 msgstr "Экспорт"
 
-#: src/gui/RestoreDialog.py:412
+#: src/gui/RestoreDialog.py:486
 msgid "Conflict"
 msgstr "Конфликт"
 
-#: src/gui/RestoreDialog.py:419
+#: src/gui/RestoreDialog.py:493
 msgid "Missing"
 msgstr "Отсутствует"
 
-#: src/gui/RestoreDialog.py:423
+#: src/gui/RestoreDialog.py:495
 msgid "Existing"
 msgstr "Существует"
 
-#: src/gui/RestoreDialog.py:428
+#: src/gui/RestoreDialog.py:501
 msgid "Output file will be written"
 msgstr "Выходной файл будет записан"
 
-#: src/gui/RestoreDialog.py:436
+#: src/gui/RestoreDialog.py:509
 msgid "Absent"
 msgstr "Отсутствует"
 
-#: src/gui/RestoreDialog.py:437
+#: src/gui/RestoreDialog.py:510
 msgid "Selected file"
 msgstr "Выбранный файл"
 
-#: src/gui/RestoreDialog.py:462
+#: src/gui/RestoreDialog.py:530
 #, python-brace-format
 msgid "Conflicts: {count}"
 msgstr "Конфликтов: {count}"
@@ -853,4 +862,3 @@ msgstr "Конфликтов: {count}"
 
 #~ msgid " versions"
 #~ msgstr " версий"
-

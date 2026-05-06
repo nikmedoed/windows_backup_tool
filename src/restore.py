@@ -17,9 +17,11 @@ class RestoreAction:
     source_path: str
     target_path: Path
     content_path: Optional[Path]
+    selected_size: Optional[int]
     selected_mtime: Optional[float]
     current_mtime: Optional[float]
     conflict: bool
+    current_size: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ def build_restore_plan(
         *,
         mode: str,
         export_root: Optional[Path] = None,
+        compare_contents: bool = True,
 ) -> RestorePlan:
     if mode not in {"original", "export"}:
         raise ValueError(f"Unsupported restore mode: {mode}")
@@ -70,30 +73,67 @@ def build_restore_plan(
     scope_input = _absolute_path(scope_path)
     scope = scope_input.resolve()
     items = store.snapshot_for_scope(run_id, scope)
+    return _build_restore_plan_from_items(
+        store,
+        run_id,
+        scope_input,
+        scope,
+        items,
+        mode=mode,
+        export_root=export_root,
+        compare_contents=compare_contents,
+    )
+
+
+def _build_restore_plan_from_items(
+        store: VersionStore,
+        run_id: int,
+        scope_input: Path,
+        scope: Path,
+        items: list[SnapshotItem],
+        *,
+        mode: str,
+        export_root: Optional[Path],
+        compare_contents: bool,
+) -> RestorePlan:
+    if mode not in {"original", "export"}:
+        raise ValueError(f"Unsupported restore mode: {mode}")
+    if mode == "export" and export_root is None:
+        raise ValueError("export_root is required for export restore")
+
     actions: list[RestoreAction] = []
     for item in items:
         if mode == "export":
             if item.state != "present":
                 continue
             target = _export_target(Path(item.source_path), export_root)
-            actions.append(_copy_action(store, item, target, action="export", skip_equal=False))
+            actions.append(_copy_action(
+                store,
+                item,
+                target,
+                action="export",
+                skip_equal=False,
+                compare_contents=compare_contents,
+            ))
             continue
 
         target = _restore_target_for_item(item, scope_input, scope)
         if item.state == "present":
-            action = _copy_action(store, item, target, skip_equal=True)
+            action = _copy_action(store, item, target, skip_equal=True, compare_contents=compare_contents)
             if action is not None:
                 actions.append(action)
-        elif target.exists():
+        elif target_stat := _target_stat(target):
             actions.append(
                 RestoreAction(
                     action="delete",
                     source_path=item.source_path,
                     target_path=target,
                     content_path=None,
+                    selected_size=None,
                     selected_mtime=None,
-                    current_mtime=_mtime(target),
+                    current_mtime=target_stat.st_mtime,
                     conflict=True,
+                    current_size=target_stat.st_size,
                 )
             )
     return RestorePlan(run_id=run_id, scope_path=scope, mode=mode, actions=actions)
@@ -106,6 +146,7 @@ def build_restore_plan_for_sources(
         *,
         mode: str,
         export_root: Optional[Path] = None,
+        compare_contents: bool = True,
 ) -> RestorePlan:
     actions: list[RestoreAction] = []
     seen: set[tuple[str, str]] = set()
@@ -113,12 +154,20 @@ def build_restore_plan_for_sources(
         source = getattr(rule, "source", None)
         if not source:
             continue
-        plan = build_restore_plan(
+        scope_input = _absolute_path(Path(source))
+        scope = scope_input.resolve()
+        items = store.snapshot_for_source_root(run_id, scope)
+        if not items:
+            items = store.snapshot_for_scope(run_id, scope)
+        plan = _build_restore_plan_from_items(
             store,
             run_id,
-            Path(source),
+            scope_input,
+            scope,
+            items,
             mode=mode,
             export_root=export_root,
+            compare_contents=compare_contents,
         )
         for action in plan.actions:
             key = (action.action, str(action.target_path).casefold())
@@ -203,14 +252,21 @@ def _copy_action(
         *,
         action: Optional[str] = None,
         skip_equal: bool,
+        compare_contents: bool,
 ) -> Optional[RestoreAction]:
     content = store.content_path_for_snapshot(item)
     if content is None:
         return None
-    if skip_equal and target.exists() and same_file(content, target, use_hash=True):
-        return None
-    resolved_action = action or ("replace" if target.exists() else "create")
-    current_mtime = _mtime(target)
+    target_stat = _target_stat(target)
+    if skip_equal and target_stat is not None:
+        if compare_contents:
+            if same_file(content, target, use_hash=True):
+                return None
+        elif _snapshot_matches_stat(item, target_stat):
+            return None
+    resolved_action = action or ("replace" if target_stat is not None else "create")
+    current_mtime = target_stat.st_mtime if target_stat is not None else None
+    current_size = target_stat.st_size if target_stat is not None else None
     conflict = (
         current_mtime is not None
         and item.mtime is not None
@@ -221,9 +277,11 @@ def _copy_action(
         source_path=item.source_path,
         target_path=target,
         content_path=content,
+        selected_size=item.size,
         selected_mtime=item.mtime,
         current_mtime=current_mtime,
         conflict=conflict,
+        current_size=current_size,
     )
 
 
@@ -276,11 +334,19 @@ def _copy2_atomic(src: Path, dst: Path) -> None:
             pass
 
 
-def _mtime(path: Path) -> Optional[float]:
+def _target_stat(path: Path) -> Optional[os.stat_result]:
     try:
-        return path.stat().st_mtime
+        return path.stat()
     except OSError:
         return None
+
+
+def _snapshot_matches_stat(item: SnapshotItem, stat: os.stat_result) -> bool:
+    if item.size is not None and stat.st_size != item.size:
+        return False
+    if item.mtime is None:
+        return False
+    return abs(stat.st_mtime - item.mtime) <= _MTIME_TOLERANCE
 
 
 def _effective_actions(plan: RestorePlan) -> list[RestoreAction]:

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import threading
 
 from PySide6 import QtCore, QtWidgets
 
@@ -17,6 +18,9 @@ class RestoreRequest:
 
 
 class RestoreDialog(QtWidgets.QDialog):
+    _plan_ready = QtCore.Signal(int, object, str)
+    _MAX_RENDERED_ACTIONS = 2000
+
     def __init__(
             self,
             cfg: Settings,
@@ -32,7 +36,11 @@ class RestoreDialog(QtWidgets.QDialog):
         self._plan: RestorePlan | None = None
         self._request: RestoreRequest | None = None
         self._item_actions: dict[int, RestoreAction] = {}
+        self._hidden_action_count = 0
+        self._bulk_checked = True
         self._syncing_checks = False
+        self._refresh_token = 0
+        self._plan_ready.connect(self._on_plan_ready)
         self._build_ui()
         self._refresh_plan()
 
@@ -129,7 +137,7 @@ class RestoreDialog(QtWidgets.QDialog):
         btn_row.addWidget(buttons)
         layout.addLayout(btn_row)
 
-        self._mode_changed()
+        self._update_mode_controls()
         self.resize(1050, 620)
 
     def accept(self) -> None:
@@ -164,21 +172,40 @@ class RestoreDialog(QtWidgets.QDialog):
                 return
             export_root = Path(export_text)
 
-        store = VersionStore(self._target_root)
-        try:
-            self._plan = build_restore_plan_for_sources(
-                store,
-                int(run_id),
-                self._cfg.sources,
-                mode=str(mode),
-                export_root=export_root,
-            )
-        except Exception as exc:
-            self._plan = None
-            self._set_empty(_("Could not build restore diff: {exc}").format(exc=exc))
+        self._refresh_token += 1
+        token = self._refresh_token
+        self._set_loading()
+
+        def _job() -> None:
+            store = VersionStore(self._target_root)
+            try:
+                plan = build_restore_plan_for_sources(
+                    store,
+                    int(run_id),
+                    list(self._cfg.sources),
+                    mode=str(mode),
+                    export_root=export_root,
+                    compare_contents=False,
+                )
+                self._plan_ready.emit(token, plan, "")
+            except Exception as exc:
+                self._plan_ready.emit(token, None, str(exc))
+            finally:
+                store.close()
+
+        threading.Thread(target=_job, daemon=True).start()
+
+    def _on_plan_ready(self, token: int, plan: object, error: str) -> None:
+        if token != self._refresh_token:
             return
-        finally:
-            store.close()
+        if error:
+            self._plan = None
+            self._set_empty(_("Could not build restore diff: {exc}").format(exc=error))
+            return
+        self._plan = plan if isinstance(plan, RestorePlan) else None
+        if self._plan is None:
+            self._set_empty(_("Could not build restore diff: {exc}").format(exc="unknown error"))
+            return
         self._fill_table()
 
     def _delete_selected_run(self) -> None:
@@ -237,8 +264,11 @@ class RestoreDialog(QtWidgets.QDialog):
         actions = self._plan.actions
         self.table.clear()
         self._item_actions.clear()
+        self._hidden_action_count = max(0, len(actions) - self._MAX_RENDERED_ACTIONS)
+        self._bulk_checked = True
         self._syncing_checks = True
-        for folder, folder_actions in _group_actions_by_folder(actions).items():
+        rendered_actions = actions[:self._MAX_RENDERED_ACTIONS]
+        for folder, folder_actions in _group_actions_by_folder(rendered_actions).items():
             parent = self._make_folder_item(folder, folder_actions)
             self.table.addTopLevelItem(parent)
             for action in folder_actions:
@@ -249,19 +279,59 @@ class RestoreDialog(QtWidgets.QDialog):
             self._refresh_parent_check_state(parent)
         self._syncing_checks = False
 
-        self.summary.setText(_summary_text(self._plan))
+        summary = _summary_text(self._plan)
+        if self._hidden_action_count:
+            summary = (
+                f"{summary}\n"
+                f"{_('Showing first {shown} files; hidden files remain selected by default.').format(
+                    shown=len(rendered_actions)
+                )}"
+            )
+        self.summary.setText(summary)
         self.ok_button.setEnabled(bool(actions))
 
     def _set_empty(self, message: str) -> None:
         self._plan = None
         self.table.clear()
+        self._item_actions.clear()
+        self._hidden_action_count = 0
         self.summary.setText(message)
+        if hasattr(self, "ok_button"):
+            self.ok_button.setEnabled(False)
+
+    def _set_loading(self) -> None:
+        self._plan = None
+        self.table.clear()
+        self._item_actions.clear()
+        self._hidden_action_count = 0
+        self.summary.setText(_("Building restore preview..."))
         if hasattr(self, "ok_button"):
             self.ok_button.setEnabled(False)
 
     def _selected_actions(self) -> list[RestoreAction]:
         if self._plan is None:
             return []
+        if self._hidden_action_count:
+            selected_rendered: list[RestoreAction] = []
+            unchecked_rendered: set[int] = set()
+            for row in range(self.table.topLevelItemCount()):
+                parent = self.table.topLevelItem(row)
+                for child_idx in range(parent.childCount()):
+                    child = parent.child(child_idx)
+                    action = self._item_actions.get(id(child))
+                    if not action:
+                        continue
+                    if child.checkState(0) == QtCore.Qt.CheckState.Checked:
+                        selected_rendered.append(action)
+                    else:
+                        unchecked_rendered.add(id(action))
+            if not self._bulk_checked:
+                return selected_rendered
+            return [
+                action
+                for action in self._plan.actions
+                if id(action) not in unchecked_rendered
+            ]
         selected: list[RestoreAction] = []
         for row in range(self.table.topLevelItemCount()):
             parent = self.table.topLevelItem(row)
@@ -273,6 +343,7 @@ class RestoreDialog(QtWidgets.QDialog):
         return selected
 
     def _set_all_checked(self, checked: bool) -> None:
+        self._bulk_checked = checked
         state = QtCore.Qt.CheckState.Checked if checked else QtCore.Qt.CheckState.Unchecked
         self._syncing_checks = True
         for row in range(self.table.topLevelItemCount()):
@@ -283,11 +354,14 @@ class RestoreDialog(QtWidgets.QDialog):
                     parent.child(child_idx).setCheckState(0, state)
         self._syncing_checks = False
 
-    def _mode_changed(self) -> None:
+    def _mode_changed(self, _index: int = -1) -> None:
+        self._update_mode_controls()
+        self._refresh_plan()
+
+    def _update_mode_controls(self) -> None:
         is_export = self.mode_combo.currentData() == "export"
         self.export_path.setEnabled(is_export)
         self.btn_export.setEnabled(is_export)
-        self._refresh_plan()
 
     def _browse_export(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(self, _("Select export folder"))
@@ -343,6 +417,7 @@ class RestoreDialog(QtWidgets.QDialog):
     def _on_item_changed(self, item: QtWidgets.QTreeWidgetItem, column: int) -> None:
         if self._syncing_checks or column != 0:
             return
+        self._bulk_checked = False
         self._syncing_checks = True
         try:
             if item.parent() is None:
@@ -417,10 +492,9 @@ def _current_size(action: RestoreAction) -> str:
         return "-"
     if action.current_mtime is None:
         return _("Missing")
-    try:
-        return human_readable(action.target_path.stat().st_size)
-    except OSError:
+    if action.current_size is None:
         return _("Existing")
+    return human_readable(action.current_size)
 
 
 def _current_modified(action: RestoreAction) -> str:
@@ -434,12 +508,7 @@ def _current_modified(action: RestoreAction) -> str:
 def _selected_version_fields(action: RestoreAction) -> tuple[str, str]:
     if action.action == "delete":
         return "-", _("Absent")
-    size = _("Selected file")
-    if action.content_path and action.content_path.exists():
-        try:
-            size = human_readable(action.content_path.stat().st_size)
-        except OSError:
-            pass
+    size = human_readable(action.selected_size) if action.selected_size is not None else _("Selected file")
     modified = "-"
     if action.selected_mtime is not None:
         modified = _format_mtime(action.selected_mtime)

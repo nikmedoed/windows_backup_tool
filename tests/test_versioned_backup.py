@@ -480,6 +480,30 @@ class VersionedBackupTests(unittest.TestCase):
         self.assertEqual(plan.actions[0].action, "replace")
         self.assertEqual(plan.actions[0].target_path, two)
 
+    def test_fast_restore_preview_does_not_hash_file_contents(self) -> None:
+        source_file = self.source / "save.txt"
+        source_file.write_text("version one", encoding="utf-8")
+        self.run_backup()
+        source_file.write_text("version two with a different size", encoding="utf-8")
+        self.run_backup()
+
+        store = VersionStore(self.target)
+        try:
+            runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
+            with mock.patch("src.restore.same_file", side_effect=AssertionError("preview should not hash files")):
+                plan = build_restore_plan_for_sources(
+                    store,
+                    runs[0].id,
+                    self.cfg.sources,
+                    mode="original",
+                    compare_contents=False,
+                )
+        finally:
+            store.close()
+
+        self.assertEqual(plan.copy_count, 1)
+        self.assertEqual(plan.actions[0].target_path, source_file)
+
     def test_deleted_source_file_is_archived_and_removed_from_mirror(self) -> None:
         source_file = self.source / "save.txt"
         source_file.write_text("version one", encoding="utf-8")

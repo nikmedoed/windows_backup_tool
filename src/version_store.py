@@ -513,26 +513,51 @@ class VersionStore:
                 """,
                 (scope_s, run_id),
             ).fetchall()
-            result: list[SnapshotItem] = []
-            for row in rows:
-                source_path = str(row["source_path"])
-                event = row["event"]
-                state = "absent" if event is None or event == "deleted" else "present"
-                result.append(
-                    SnapshotItem(
-                        file_id=int(row["id"]),
-                        source_path=source_path,
-                        source_root=str(row["source_root"]),
-                        mirror_rel=str(row["mirror_rel"]),
-                        state=state,
-                        event=str(event) if event is not None else None,
-                        content_rel=row["content_rel"],
-                        size=row["size"],
-                        mtime=row["mtime"],
-                        hash=row["hash"],
-                    )
+        return _rows_to_snapshot_items(rows)
+
+    def snapshot_for_source_root(self, run_id: int, source_root: Path) -> list[SnapshotItem]:
+        source_root_s = str(source_root.expanduser().resolve())
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                WITH scoped_files AS (
+                    SELECT id, source_path, source_root, mirror_rel
+                    FROM files
+                    WHERE source_root = ?
+                ),
+                ranked_versions AS (
+                    SELECT
+                        v.file_id,
+                        v.event,
+                        v.content_rel,
+                        v.size,
+                        v.mtime,
+                        v.hash,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY v.file_id
+                            ORDER BY v.run_id DESC, v.id DESC
+                        ) AS rn
+                    FROM versions v
+                    JOIN scoped_files sf ON sf.id = v.file_id
+                    JOIN runs r ON r.id = v.run_id
+                    WHERE v.run_id <= ? AND r.success = 1
                 )
-        return result
+                SELECT
+                    f.id,
+                    f.source_path,
+                    f.source_root,
+                    f.mirror_rel,
+                    rv.event,
+                    rv.content_rel,
+                    rv.size,
+                    rv.mtime,
+                    rv.hash
+                FROM scoped_files f
+                LEFT JOIN ranked_versions rv ON rv.file_id = f.id AND rv.rn = 1
+                """,
+                (source_root_s, run_id),
+            ).fetchall()
+        return _rows_to_snapshot_items(rows)
 
     def content_path_for_snapshot(self, item: SnapshotItem) -> Optional[Path]:
         if item.state != "present":
@@ -754,6 +779,29 @@ def _path_in_scope_sql(path: object, scope: object) -> int:
     if path is None or scope is None:
         return 0
     return int(_path_in_scope(str(path), str(scope)))
+
+
+def _rows_to_snapshot_items(rows: Iterable[sqlite3.Row]) -> list[SnapshotItem]:
+    result: list[SnapshotItem] = []
+    for row in rows:
+        source_path = str(row["source_path"])
+        event = row["event"]
+        state = "absent" if event is None or event == "deleted" else "present"
+        result.append(
+            SnapshotItem(
+                file_id=int(row["id"]),
+                source_path=source_path,
+                source_root=str(row["source_root"]),
+                mirror_rel=str(row["mirror_rel"]),
+                state=state,
+                event=str(event) if event is not None else None,
+                content_rel=row["content_rel"],
+                size=row["size"],
+                mtime=row["mtime"],
+                hash=row["hash"],
+            )
+        )
+    return result
 
 
 def _same_effective_version(left: Optional[sqlite3.Row], right: Optional[sqlite3.Row]) -> bool:
