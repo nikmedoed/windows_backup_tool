@@ -221,6 +221,7 @@ pyinstaller BackupTool.spec --noconfirm
 > `--uac-admin`: requests elevated privileges when launched  
 > Result is saved in `dist/BackupTool.exe`.
 > The spec generates `src/_version_generated.py` and compiles translations before PyInstaller analysis, so the frozen executable carries the tag-derived version and `.mo` locale files.
+> The executable is built without a startup console. Backup runs create a console only when **Show console progress** is enabled.
 
 ## Release Build
 

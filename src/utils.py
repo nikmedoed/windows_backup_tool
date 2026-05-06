@@ -250,8 +250,45 @@ def _hide_console() -> None:
     """
     Hide the console window on Windows.
     """
+    if sys.platform != "win32":
+        return
     whnd = ctypes.windll.kernel32.GetConsoleWindow()
-    ctypes.windll.user32.ShowWindow(whnd, 0)
+    if whnd:
+        ctypes.windll.user32.ShowWindow(whnd, 0)
+
+
+def _show_console() -> None:
+    """
+    Create and show a console window on Windows when the frozen app is built
+    without one.
+    """
+    if sys.platform != "win32":
+        return
+
+    kernel32 = ctypes.windll.kernel32
+    user32 = ctypes.windll.user32
+    whnd = kernel32.GetConsoleWindow()
+    if not whnd:
+        kernel32.AllocConsole()
+        whnd = kernel32.GetConsoleWindow()
+    if whnd:
+        user32.ShowWindow(whnd, 5)
+        _redirect_stdio_to_console()
+
+
+def _redirect_stdio_to_console() -> None:
+    try:
+        sys.stdin = open("CONIN$", "r", encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    try:
+        sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+    except OSError:
+        pass
+    try:
+        sys.stderr = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+    except OSError:
+        pass
 
 
 def notify_user(title: str, message: str, icon: int = 0x00000040) -> None:

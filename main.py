@@ -2,7 +2,7 @@ import argparse
 
 from src.app_version import VERSION
 from src.i18n import _
-from src.utils import is_admin, _hide_console
+from src.utils import is_admin, _hide_console, _show_console
 
 
 def main() -> None:
@@ -47,19 +47,36 @@ def main() -> None:
         cfg = Settings.load()
         if not cfg:
             raise SystemExit(_("No saved configuration, run GUI first."))
-        if not cfg.show_console:
+        if cfg.show_console:
+            _show_console()
+        else:
             _hide_console()
+        silent_log = (lambda _m: None) if not cfg.show_console else None
+        silent_progress = (lambda _done, _total: None) if not cfg.show_console else None
         success = False
         if cfg.show_tray_icon:
             try:
                 from src.tray import run_with_tray
                 success = run_with_tray(cfg, debug=args.debug)
             except Exception as exc:
-                print(_("Tray icon mode failed ({exc}). Falling back to console output.")
-                      .format(exc=exc))
-                success = run_backup(cfg, debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
+                if cfg.show_console:
+                    print(_("Tray icon mode failed ({exc}). Falling back to console output.")
+                          .format(exc=exc))
+                success = run_backup(
+                    cfg,
+                    progress_cb=silent_progress,
+                    log_cb=silent_log,
+                    debug=bool(args.debug),
+                    debug_path=args.debug if isinstance(args.debug, str) else None,
+                )
         else:
-            success = run_backup(cfg, debug=bool(args.debug), debug_path=args.debug if isinstance(args.debug, str) else None)
+            success = run_backup(
+                cfg,
+                progress_cb=silent_progress,
+                log_cb=silent_log,
+                debug=bool(args.debug),
+                debug_path=args.debug if isinstance(args.debug, str) else None,
+            )
         raise SystemExit(0 if success else 1)
     else:
         try:

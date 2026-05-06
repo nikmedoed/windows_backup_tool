@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 DEFAULT_VERSION = "0.0.0"
+_NO_WINDOW_FLAGS = 0x08000000 if sys.platform == "win32" else 0
 
 
 def _from_generated() -> str | None:
@@ -25,6 +27,7 @@ def _from_git() -> str | None:
             stderr=subprocess.DEVNULL,
             text=True,
             timeout=2,
+            creationflags=_NO_WINDOW_FLAGS,
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None

@@ -27,6 +27,7 @@ class _BackupWorker(QtCore.QObject):
         success = run_backup(
             self._cfg,
             progress_cb=self.progress.emit,
+            log_cb=lambda _m: None,
             debug=self._debug,
             debug_path=self._debug_path if isinstance(self._debug_path, str) else None,
         )

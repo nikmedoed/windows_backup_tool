@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 TASK_FOLDER = r"\BackupTool"
+_NO_WINDOW_FLAGS = 0x08000000 if sys.platform == "win32" else 0
 
 TASKS: dict[str, tuple[str, list[str]]] = {
     "daily": (
@@ -29,7 +30,7 @@ TASKS: dict[str, tuple[str, list[str]]] = {
 
 
 def _run(cmd: list[str]) -> None:
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, creationflags=_NO_WINDOW_FLAGS)
 
 
 def _full_name(key: str) -> str:
@@ -39,7 +40,9 @@ def _full_name(key: str) -> str:
 def exists(key: str) -> bool:
     return subprocess.run(
         ["schtasks", "/Query", "/TN", _full_name(key)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=_NO_WINDOW_FLAGS,
     ).returncode == 0
 
 
