@@ -67,7 +67,8 @@ def build_restore_plan(
     if mode == "export" and export_root is None:
         raise ValueError("export_root is required for export restore")
 
-    scope = scope_path.expanduser().resolve()
+    scope_input = _absolute_path(scope_path)
+    scope = scope_input.resolve()
     items = store.snapshot_for_scope(run_id, scope)
     actions: list[RestoreAction] = []
     for item in items:
@@ -78,7 +79,7 @@ def build_restore_plan(
             actions.append(_copy_action(store, item, target, action="export", skip_equal=False))
             continue
 
-        target = Path(item.source_path)
+        target = _restore_target_for_item(item, scope_input, scope)
         if item.state == "present":
             action = _copy_action(store, item, target, skip_equal=True)
             if action is not None:
@@ -229,6 +230,24 @@ def _copy_action(
 def _export_target(source_path: Path, export_root: Optional[Path]) -> Path:
     assert export_root is not None
     return export_root.expanduser().resolve() / mirror_relative_for_source(source_path)
+
+
+def _restore_target_for_item(item: SnapshotItem, scope_input: Path, resolved_scope: Path) -> Path:
+    source = Path(item.source_path)
+    try:
+        rel = source.relative_to(resolved_scope)
+    except ValueError:
+        return source
+    if str(rel) == ".":
+        return scope_input
+    return scope_input / rel
+
+
+def _absolute_path(path: Path) -> Path:
+    expanded = path.expanduser()
+    if expanded.is_absolute():
+        return expanded
+    return Path.cwd() / expanded
 
 
 def _archive_current_target(

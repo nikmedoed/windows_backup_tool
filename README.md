@@ -214,14 +214,13 @@ To update:
 
 Generate a standalone `.exe`:
 
-```bash
-python scripts/write_version.py --print
+```powershell
 pyinstaller BackupTool.spec --noconfirm
 ```
 
 > `--uac-admin`: requests elevated privileges when launched  
 > Result is saved in `dist/BackupTool.exe`.
-> The build writes `src/_version_generated.py` from `git describe --tags --dirty --always`, so the frozen executable carries the tag-derived version even when it later runs outside a git checkout.
+> The spec generates `src/_version_generated.py` and compiles translations before PyInstaller analysis, so the frozen executable carries the tag-derived version and `.mo` locale files.
 
 ## Release Build
 
