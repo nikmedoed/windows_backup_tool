@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QSizePolicy
 from src.app_version import VERSION
 from src.config import Settings, PathRule
 from src.copier import run_backup
-from src.i18n import _
+from src.i18n import _, get_language, set_language
 from src.restore import apply_restore_plan
 from src.scheduler import exists, delete, schedule
 from src.utils import human_readable
@@ -48,9 +48,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._append_startup_log()
 
     def _build_ui(self):
+        old_central = self.takeCentralWidget()
         cw = QtWidgets.QWidget()
         self.setCentralWidget(cw)
-        left_column_width = 440
+        if old_central is not None:
+            old_central.deleteLater()
+        self.setWindowTitle(_("Backup Tool Settings"))
+        left_column_width = 460
+        right_column_width = 352
 
         def _panel(layout: QtWidgets.QLayout) -> QtWidgets.QWidget:
             panel = QtWidgets.QWidget()
@@ -65,6 +70,11 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_pick = QtWidgets.QPushButton("…")
         btn_pick.clicked.connect(self._pick_target)
         target_layout.addWidget(btn_pick)
+        self.btn_lang = QtWidgets.QPushButton(get_language().upper())
+        self.btn_lang.setFixedWidth(44)
+        self.btn_lang.setToolTip(_("Switch language"))
+        self.btn_lang.clicked.connect(self._toggle_language)
+        target_layout.addWidget(self.btn_lang)
 
         def _min_list_height(widget: QtWidgets.QListWidget, rows: float) -> int:
             """Return a pixel height that fits the requested number of rows (with a small hint of the next one)."""
@@ -144,7 +154,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_idle = QtWidgets.QCheckBox(_("On idle (20 min)"))
         self.cb_unlock = QtWidgets.QCheckBox(_("On unlock"))
         _cb_style = (
-            "QCheckBox { margin: 4px; margin-left: 6px; padding: 0px; } "
+            "QCheckBox { margin: 2px 4px 2px 6px; padding: 0px; } "
             "QCheckBox::indicator { margin: 0px 4px 0px 0px; padding: 0px; }"
         )
         for cb in (self.cb_day, self.cb_week, self.cb_logon, self.cb_idle, self.cb_unlock):
@@ -163,6 +173,7 @@ class MainWindow(QtWidgets.QMainWindow):
         behavior_layout.setContentsMargins(6, 2, 6, 6)
         behavior_layout.setHorizontalSpacing(4)
         behavior_layout.setVerticalSpacing(0)
+        behavior_layout.setColumnMinimumWidth(0, 26)
         behavior_layout.setColumnStretch(1, 1)
         self.chk_wait = QtWidgets.QCheckBox()
         self.chk_console = QtWidgets.QCheckBox()
@@ -174,34 +185,38 @@ class MainWindow(QtWidgets.QMainWindow):
             (self.chk_tray, _("Show tray icon while backing up")),
             (self.chk_overlay, _("Show floating bubble when finished")),
         ]):
-            cb.setStyleSheet(_cb_style)
             label = QtWidgets.QLabel(text)
             label.setWordWrap(True)
-            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            behavior_layout.addWidget(cb, row, 0, QtCore.Qt.AlignmentFlag.AlignTop)
-            behavior_layout.addWidget(label, row, 1)
+            label.setMargin(0)
+            label.setContentsMargins(0, 0, 0, 0)
+            label.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            behavior_layout.addWidget(cb, row, 0, QtCore.Qt.AlignmentFlag.AlignVCenter)
+            behavior_layout.addWidget(label, row, 1, QtCore.Qt.AlignmentFlag.AlignVCenter)
+            behavior_layout.setRowMinimumHeight(row, 28)
 
         history_group = QtWidgets.QGroupBox(_("Version history"))
         history_layout = QtWidgets.QHBoxLayout(history_group)
         history_layout.setContentsMargins(6, 4, 6, 6)
-        history_layout.setSpacing(6)
+        history_layout.setSpacing(4)
         history_layout.addWidget(QtWidgets.QLabel(_("Keep:")))
         retention_layout = QtWidgets.QHBoxLayout()
         retention_layout.setContentsMargins(0, 0, 0, 0)
+        retention_layout.setSpacing(4)
         self.spn_retention = QtWidgets.QSpinBox()
         self.spn_retention.setRange(0, 9999)
         self.spn_retention.setSpecialValueText(_("Unlimited"))
-        self.spn_retention.setFixedWidth(132)
+        self.spn_retention.setFixedWidth(144)
         retention_layout.addWidget(self.spn_retention)
         btn_unlimited = QtWidgets.QPushButton("∞")
         btn_unlimited.setToolTip(_("Unlimited"))
-        btn_unlimited.setFixedWidth(32)
+        btn_unlimited.setFixedWidth(34)
         btn_unlimited.clicked.connect(lambda _checked=False: self.spn_retention.setValue(0))
         retention_layout.addWidget(btn_unlimited)
         retention_presets = [15, 50, 100, 200, 500]
         for value in retention_presets:
             btn = QtWidgets.QPushButton(str(value))
-            btn.setFixedWidth(38)
+            btn.setFixedWidth(36)
             btn.clicked.connect(lambda _checked=False, v=value: self.spn_retention.setValue(v))
             retention_layout.addWidget(btn)
         history_layout.addLayout(retention_layout)
@@ -212,7 +227,7 @@ class MainWindow(QtWidgets.QMainWindow):
         options_layout.addWidget(behavior_group, 0, 1)
         options_layout.addWidget(history_group, 1, 0, 1, 2)
         options_layout.setContentsMargins(0, 0, 0, 0)
-        options_layout.setHorizontalSpacing(8)
+        options_layout.setHorizontalSpacing(6)
         options_layout.setVerticalSpacing(4)
         options_layout.setColumnStretch(0, 0)
         options_layout.setColumnStretch(1, 1)
@@ -220,21 +235,25 @@ class MainWindow(QtWidgets.QMainWindow):
             label = QtWidgets.QLabel()
             label.setStyleSheet("color: #8fd18f;")
             label.setAlignment(alignment | QtCore.Qt.AlignmentFlag.AlignVCenter)
-            label.setFixedWidth(width)
-            label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            label.setMaximumWidth(width)
+            label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             return label
 
-        self.settings_status_label = _status_label(70, QtCore.Qt.AlignmentFlag.AlignLeft)
-        self.backup_status_label = _status_label(50, QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.settings_status_label = _status_label(108, QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.backup_status_label = _status_label(48, QtCore.Qt.AlignmentFlag.AlignLeft)
 
         settings_actions = QtWidgets.QHBoxLayout()
         settings_actions.setContentsMargins(0, 0, 0, 0)
-        settings_actions.setSpacing(8)
+        settings_actions.setSpacing(6)
+        settings_actions.addWidget(QtWidgets.QLabel(_("Settings")))
         btn_save = QtWidgets.QPushButton(_("Save settings"))
+        btn_save.setMinimumWidth(98)
         btn_save.clicked.connect(self._save)
         btn_reload = QtWidgets.QPushButton(_("Reload saved"))
+        btn_reload.setMinimumWidth(98)
         btn_reload.clicked.connect(self._reload_saved_settings)
         btn_exit = QtWidgets.QPushButton(_("Exit"))
+        btn_exit.setMinimumWidth(72)
         btn_exit.clicked.connect(self.close)
         settings_actions.addWidget(btn_save)
         settings_actions.addWidget(btn_reload)
@@ -244,16 +263,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         backup_actions = QtWidgets.QHBoxLayout()
         backup_actions.setContentsMargins(0, 0, 0, 0)
-        backup_actions.setSpacing(8)
+        backup_actions.setSpacing(6)
         self.btn_restore = QtWidgets.QPushButton(_("Restore version"))
+        self.btn_restore.setMinimumWidth(112)
         self.btn_restore.clicked.connect(self._restore)
         self.btn_run = QtWidgets.QPushButton(_("Run backup"))
+        self.btn_run.setMinimumWidth(96)
         self.btn_run.clicked.connect(self._run)
         self.lbl_last_success_caption = QtWidgets.QLabel(_("Last backup:"))
         self.lbl_last_success_value = QtWidgets.QLabel()
+        last_success_width = self.lbl_last_success_value.fontMetrics().horizontalAdvance("0000-00-00 00:00:00") + 4
+        self.lbl_last_success_value.setMinimumWidth(last_success_width)
+        self.lbl_last_success_value.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         backup_actions.addWidget(self.lbl_last_success_caption)
         backup_actions.addWidget(self.lbl_last_success_value)
-        backup_actions.addSpacing(4)
+        backup_actions.addSpacing(2)
         backup_actions.addWidget(self.btn_restore)
         backup_actions.addWidget(self.btn_run)
         backup_actions.addWidget(self.backup_status_label)
@@ -298,17 +322,53 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(self.txt_log, 3)
 
         right_panel = _panel(excl_layout)
-        right_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        right_panel.setFixedWidth(right_column_width)
+        right_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
 
         body_layout = QtWidgets.QHBoxLayout()
         body_layout.addWidget(left_panel)
-        body_layout.addWidget(right_panel, 1)
+        body_layout.addWidget(right_panel)
 
         root_layout = QtWidgets.QVBoxLayout(cw)
         root_layout.addLayout(target_layout)
         root_layout.addLayout(body_layout, 1)
 
         self._load_fields()
+
+    def _capture_form_state(self) -> dict:
+        state = {
+            "target_dir": self.le_target.text(),
+            "schedule": {key: cb.isChecked() for key, cb in self.schedule_controls.items()},
+            "wait_on_finish": self.chk_wait.isChecked(),
+            "show_console": self.chk_console.isChecked(),
+            "show_tray_icon": self.chk_tray.isChecked(),
+            "show_overlay": self.chk_overlay.isChecked(),
+            "retention": self.spn_retention.value(),
+            "current_source_row": self.lst_src.currentRow(),
+            "log_html": self.txt_log.toHtml(),
+        }
+        return state
+
+    def _restore_form_state(self, state: dict) -> None:
+        self.le_target.setText(state["target_dir"])
+        for key, checked in state["schedule"].items():
+            if key in self.schedule_controls:
+                self.schedule_controls[key].setChecked(checked)
+        self.chk_wait.setChecked(state["wait_on_finish"])
+        self.chk_console.setChecked(state["show_console"])
+        self.chk_tray.setChecked(state["show_tray_icon"])
+        self.chk_overlay.setChecked(state["show_overlay"])
+        self.spn_retention.setValue(state["retention"])
+        self.lst_src.setCurrentRow(state["current_source_row"])
+        if state["log_html"]:
+            self.txt_log.setHtml(state["log_html"])
+
+    def _toggle_language(self) -> None:
+        state = self._capture_form_state()
+        next_lang = "ru" if get_language() == "en" else "en"
+        set_language(next_lang)
+        self._build_ui()
+        self._restore_form_state(state)
 
     def _load_fields(self):
         self.le_target.setText(self.cfg.target_dir)
@@ -522,11 +582,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.txt_log.ensureCursorVisible()
 
     def _append_startup_log(self):
-        self._append_log(_("Backup Tool version: {version}").format(version=VERSION))
-        self._append_log(
+        version_line = _("Backup Tool version: {version}").format(version=VERSION)
+        author_line = (
             _("Author: Muromtsev Nikita. Other useful utilities and support the author: {url}")
             .format(url="https://nikmedoed.com/")
         )
+        self._append_log(f"{version_line}\n{author_line}")
 
     def _reset_log(self):
         self.txt_log.clear()
@@ -653,7 +714,7 @@ def _log_chip(text: str) -> str:
 
 
 def _log_text(text: str) -> str:
-    return _soft_break_paths(escape(text))
+    return _soft_break_paths(escape(text)).replace("\n", "<br>")
 
 
 def _log_path(text: str) -> str:

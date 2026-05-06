@@ -12,7 +12,7 @@ def open_gui(*, debug: bool = False, debug_path: Optional[str] = None):
     app = QtWidgets.QApplication([])
     install_qt(app)
     win = MainWindow(debug=debug, debug_path=debug_path)
-    win.resize(840, 560)
+    win.resize(842, 700)
 
     icon_path = Path(__file__).parent.parent.parent / "icon" / "icon.png"
     if icon_path.exists():
