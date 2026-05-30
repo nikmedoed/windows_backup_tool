@@ -1,4 +1,5 @@
 import ctypes
+import fnmatch
 import hashlib
 import io
 import math
@@ -84,12 +85,66 @@ def human_readable(size: int) -> str:
     return f"{size:.2f} PB"
 
 
-def iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = None) -> Iterable[Path]:
+def iter_files(
+        rule: PathRule,
+        debug_log: Optional[Callable[[str], None]] = None,
+        exclude_patterns: Optional[list[str]] = None,
+) -> Iterable[Path]:
     """
     Generate all files under rule.source, excluding any paths in rule.excludes.
     If debug_log is provided, emit short traversal notes.
     """
-    return _iter_files(rule, debug_log=debug_log)
+    return _iter_files(rule, debug_log=debug_log, exclude_patterns=exclude_patterns)
+
+
+def is_excluded_by_rule(
+        path: Path,
+        rule: PathRule,
+        *,
+        root: Optional[Path] = None,
+        exclude_patterns: Optional[list[str]] = None,
+) -> bool:
+    """
+    Return True when path is excluded by explicit relative paths or glob patterns.
+    """
+    root = root or Path(rule.source).expanduser().resolve()
+    matcher = ExclusionMatcher(root, rule.excludes, exclude_patterns or [])
+    return matcher.skip(path)
+
+
+class ExclusionMatcher:
+    def __init__(self, root: Path, excludes: list[str], patterns: list[str]):
+        self.root = root
+        self.excluded_paths = self._resolve_excluded_paths(excludes)
+        self.patterns = [_normalize_pattern(p) for p in patterns if p.strip()]
+
+    def skip(self, path: Path) -> bool:
+        if any(path.is_relative_to(ex) for ex in self.excluded_paths):
+            return True
+        if not self.patterns:
+            return False
+        rel = _relative_posix(path, self.root)
+        parts = rel.split("/") if rel else []
+        for pattern in self.patterns:
+            if "/" not in pattern:
+                if any(fnmatch.fnmatchcase(part.casefold(), pattern) for part in parts):
+                    return True
+                continue
+            if fnmatch.fnmatchcase(rel.casefold(), pattern):
+                return True
+        return False
+
+    def describe_excludes(self) -> list[Path]:
+        return self.excluded_paths
+
+    def _resolve_excluded_paths(self, excludes: list[str]) -> list[Path]:
+        resolved: list[Path] = []
+        for ex in excludes:
+            path = (self.root / Path(ex)).absolute()
+            if _is_link(path):
+                continue
+            resolved.append(path)
+        return resolved
 
 
 class DebugLog:
@@ -137,46 +192,54 @@ class DebugLog:
                 self._fh = None
 
 
-def _iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = None) -> Iterable[Path]:
+def _is_link(path: Path, entry: Optional[os.DirEntry] = None) -> bool:
+    if os.name != "nt":
+        if entry is not None:
+            try:
+                return entry.is_symlink()
+            except OSError:
+                return False
+        return path.is_symlink()
+    try:
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+        if attrs == -1:
+            return False
+        return bool(attrs & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+    except Exception:
+        if entry is not None:
+            try:
+                return entry.is_symlink()
+            except OSError:
+                return False
+        return path.is_symlink()
+
+
+def _normalize_pattern(pattern: str) -> str:
+    return pattern.strip().replace("\\", "/").strip("/").casefold()
+
+
+def _relative_posix(path: Path, root: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _iter_files(
+        rule: PathRule,
+        debug_log: Optional[Callable[[str], None]] = None,
+        exclude_patterns: Optional[list[str]] = None,
+) -> Iterable[Path]:
     def _emit(event: str, detail: str) -> None:
         if debug_log:
             debug_log(f"{event}: {detail}")
-
-    def _is_link(path: Path, entry: Optional[os.DirEntry] = None) -> bool:
-        if os.name != "nt":
-            if entry is not None:
-                try:
-                    return entry.is_symlink()
-                except OSError:
-                    return False
-            return path.is_symlink()
-        try:
-            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
-            if attrs == -1:
-                return False
-            return bool(attrs & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
-        except Exception:
-            if entry is not None:
-                try:
-                    return entry.is_symlink()
-                except OSError:
-                    return False
-            return path.is_symlink()
 
     root = Path(rule.source).expanduser().resolve()
     if not root.exists():
         _emit("RULE_MISSING", str(root))
         return
 
-    excluded_raw = [(root / Path(e)).absolute() for e in rule.excludes]
-    excluded: list[Path] = []
-    for ex in excluded_raw:
-        if _is_link(ex):
-            continue
-        excluded.append(ex)
-
-    def _skip(p: Path) -> bool:
-        return any(p.is_relative_to(ex) for ex in excluded)
+    matcher = ExclusionMatcher(root, rule.excludes, exclude_patterns or [])
 
     def _fmt(p: Path) -> str:
         try:
@@ -185,15 +248,17 @@ def _iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = Non
             return str(p)
 
     _emit("RULE", str(root))
-    if excluded:
-        _emit("EXCLUDES", ", ".join(_fmt(e) for e in excluded))
+    if matcher.describe_excludes():
+        _emit("EXCLUDES", ", ".join(_fmt(e) for e in matcher.describe_excludes()))
     else:
         _emit("EXCLUDES", "-")
+    if matcher.patterns:
+        _emit("EXCLUDE_PATTERNS", ", ".join(matcher.patterns))
 
     stack = [root]
     while stack:
         cur = stack.pop()
-        if _skip(cur):
+        if matcher.skip(cur):
             _emit("SKIP_EXCLUDED", _fmt(cur))
             continue
         _emit("ENTER", _fmt(cur))
@@ -205,11 +270,11 @@ def _iter_files(rule: PathRule, debug_log: Optional[Callable[[str], None]] = Non
                         _emit("SKIP_LINK", _fmt(path))
                         continue
                     if entry.is_dir(follow_symlinks=False):
-                        if _skip(path):
+                        if matcher.skip(path):
                             _emit("SKIP_EXCLUDED", _fmt(path))
                             continue
                         stack.append(path)
-                    elif entry.is_file(follow_symlinks=False) and not _skip(path):
+                    elif entry.is_file(follow_symlinks=False) and not matcher.skip(path):
                         yield path
         except (PermissionError, FileNotFoundError) as exc:
             _emit("SKIP_INACCESSIBLE", f"{_fmt(cur)} [{type(exc).__name__}]")

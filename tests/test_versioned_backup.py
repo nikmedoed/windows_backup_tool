@@ -526,7 +526,7 @@ class VersionedBackupTests(unittest.TestCase):
 
         self.assertEqual(source_file.read_text(encoding="utf-8"), "version one")
 
-    def test_newly_excluded_file_is_archived_and_removed_from_mirror(self) -> None:
+    def test_newly_excluded_file_is_ignored_without_removing_mirror(self) -> None:
         source_file = self.source / "save.txt"
         source_file.write_text("version one", encoding="utf-8")
         self.run_backup()
@@ -535,21 +535,108 @@ class VersionedBackupTests(unittest.TestCase):
         self.run_backup()
 
         mirror_file = mirror_path_for_source(self.target, source_file)
-        self.assertFalse(mirror_file.exists())
+        self.assertTrue(mirror_file.exists())
+        self.assertEqual(mirror_file.read_text(encoding="utf-8"), "version one")
         self.assertTrue(source_file.exists())
 
         store = VersionStore(self.target)
         try:
             runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
-            self.assertEqual(len(runs), 2)
-            restore_plan = build_restore_plan(store, runs[0].id, source_file, mode="export", export_root=self.root / "export")
-            self.assertEqual(restore_plan.export_count, 1)
-            self.assertTrue(apply_restore_plan(restore_plan, store, log_cb=lambda _m: None))
+            self.assertEqual(len(runs), 1)
         finally:
             store.close()
 
-        exported = self.root / "export" / mirror_relative_for_source(source_file)
-        self.assertEqual(exported.read_text(encoding="utf-8"), "version one")
+    def test_exclude_patterns_skip_development_junk(self) -> None:
+        keep = self.source / "src" / "app.py"
+        cache = self.source / "src" / "__pycache__" / "app.cpython-313.pyc"
+        venv = self.source / ".venv" / "Scripts" / "python.exe"
+        node_modules = self.source / "frontend" / "node_modules" / "pkg" / "index.js"
+        dist = self.source / "dist" / "artifact.whl"
+        for path in (keep, cache, venv, node_modules, dist):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(path.name, encoding="utf-8")
+        self.cfg.exclude_patterns = [
+            ".venv",
+            "__pycache__",
+            "node_modules",
+            "dist",
+            "*.pyc",
+        ]
+
+        self.run_backup()
+
+        self.assertTrue(mirror_path_for_source(self.target, keep).exists())
+        self.assertFalse(mirror_path_for_source(self.target, cache).exists())
+        self.assertFalse(mirror_path_for_source(self.target, venv).exists())
+        self.assertFalse(mirror_path_for_source(self.target, node_modules).exists())
+        self.assertFalse(mirror_path_for_source(self.target, dist).exists())
+
+    def test_newly_pattern_excluded_file_is_ignored_without_removing_mirror(self) -> None:
+        source_file = self.source / "__pycache__" / "save.pyc"
+        source_file.parent.mkdir()
+        source_file.write_text("version one", encoding="utf-8")
+        self.run_backup()
+
+        self.cfg.exclude_patterns = ["__pycache__", "*.pyc"]
+        self.run_backup()
+
+        mirror_file = mirror_path_for_source(self.target, source_file)
+        self.assertTrue(mirror_file.exists())
+        self.assertEqual(mirror_file.read_text(encoding="utf-8"), "version one")
+        self.assertTrue(source_file.exists())
+
+        store = VersionStore(self.target)
+        try:
+            runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
+            self.assertEqual(len(runs), 1)
+        finally:
+            store.close()
+
+    def test_backup_writes_restore_settings_to_target(self) -> None:
+        self.cfg.sources[0].excludes = ["local.secret"]
+        self.cfg.exclude_patterns = ["__pycache__", "*.pyc"]
+        (self.source / "keep.txt").write_text("keep", encoding="utf-8")
+
+        self.run_backup()
+
+        loaded = Settings.load_from_target(self.target)
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+        self.assertEqual(loaded.target_dir, str(self.target))
+        self.assertEqual(loaded.sources[0].source, str(self.source))
+        self.assertEqual(loaded.sources[0].excludes, ["local.secret"])
+        self.assertEqual(loaded.exclude_patterns, ["__pycache__", "*.pyc"])
+
+    def test_configured_source_export_skips_ignored_index_entries(self) -> None:
+        keep = self.source / "keep.txt"
+        ignored = self.source / "__pycache__" / "save.pyc"
+        ignored.parent.mkdir()
+        keep.write_text("keep", encoding="utf-8")
+        ignored.write_text("ignored", encoding="utf-8")
+        self.run_backup()
+
+        self.cfg.exclude_patterns = ["__pycache__", "*.pyc"]
+        self.run_backup()
+        loaded = Settings.load_from_target(self.target)
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+
+        store = VersionStore(self.target)
+        try:
+            runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
+            plan = build_restore_plan_for_sources(
+                store,
+                runs[-1].id,
+                loaded.sources,
+                mode="export",
+                export_root=self.root / "export",
+                exclude_patterns=loaded.exclude_patterns,
+            )
+        finally:
+            store.close()
+
+        self.assertEqual(plan.export_count, 1)
+        self.assertEqual(plan.actions[0].source_path, str(keep.resolve()))
 
     def test_export_restore_writes_selected_version_to_folder(self) -> None:
         source_file = self.source / "save.txt"

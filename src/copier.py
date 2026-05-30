@@ -12,7 +12,7 @@ from typing import Callable, Optional
 
 from src.i18n import _
 from .config import PathRule, Settings
-from .utils import DebugLog, iter_files, notify_user, sha1
+from .utils import DebugLog, is_excluded_by_rule, iter_files, notify_user, sha1
 from .version_store import FileRecord, VersionStore, mirror_relative_for_source, source_roots_for_rules
 
 _PROGRESS_LOG_INTERVAL_SECONDS = 5.0
@@ -184,6 +184,13 @@ def run_backup(
                 _log(_("❌ Could not create target directory \"{0}\": {1}").format(tgt_root, e), is_error=True)
                 return _finalize(False, _("Could not create target directory \"{0}\"").format(tgt_root))
 
+        try:
+            cfg.save_to_target(tgt_root)
+        except Exception as exc:
+            msg = _("Could not write backup settings to target \"{0}\": {1}").format(tgt_root, exc)
+            _log(_("❌ {msg}").format(msg=msg), is_error=True)
+            return _finalize(False, msg)
+
         store = VersionStore(tgt_root)
 
         try:
@@ -201,7 +208,11 @@ def run_backup(
         for rule in cfg.sources:
             source_root = Path(rule.source).expanduser().resolve()
             effective_rule = _rule_without_backup_target(rule, source_root, tgt_root, dbg=dbg)
-            for file_path in iter_files(effective_rule, debug_log=dbg.log if dbg.enabled else None):
+            for file_path in iter_files(
+                    effective_rule,
+                    debug_log=dbg.log if dbg.enabled else None,
+                    exclude_patterns=cfg.exclude_patterns,
+            ):
                 key = _path_key(file_path)
                 if key in scanned_keys:
                     duplicate_count += 1
@@ -273,7 +284,9 @@ def run_backup(
                 continue
             if not _belongs_to_roots(source, configured_roots):
                 continue
-            if _source_still_in_active_scope(source, cfg.sources):
+            if _source_ignored_by_current_rules(source, cfg.sources, cfg.exclude_patterns):
+                continue
+            if _source_still_in_active_scope(source, cfg.sources, cfg.exclude_patterns):
                 continue
             delete_tasks.append((record, tgt_root / Path(record.mirror_rel)))
 
@@ -494,7 +507,7 @@ def _path_key(path: Path) -> str:
         return str(path).casefold()
 
 
-def _source_still_in_active_scope(path: Path, sources: list[object]) -> bool:
+def _source_still_in_active_scope(path: Path, sources: list[object], exclude_patterns: list[str]) -> bool:
     try:
         resolved = path.expanduser().resolve()
     except OSError:
@@ -511,14 +524,27 @@ def _source_still_in_active_scope(path: Path, sources: list[object]) -> bool:
             continue
         if not _same_or_child(resolved, root):
             continue
-        excludes = getattr(rule, "excludes", [])
-        excluded = False
-        for exclude in excludes:
-            exclude_path = (root / Path(exclude)).expanduser().resolve()
-            if _same_or_child(resolved, exclude_path):
-                excluded = True
-                break
-        if not excluded:
+        if not is_excluded_by_rule(resolved, rule, root=root, exclude_patterns=exclude_patterns):
+            return True
+    return False
+
+
+def _source_ignored_by_current_rules(path: Path, sources: list[object], exclude_patterns: list[str]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path.expanduser()
+    for rule in sources:
+        source = getattr(rule, "source", None)
+        if not source:
+            continue
+        try:
+            root = Path(source).expanduser().resolve()
+        except OSError:
+            continue
+        if not _same_or_child(resolved, root):
+            continue
+        if is_excluded_by_rule(resolved, rule, root=root, exclude_patterns=exclude_patterns):
             return True
     return False
 

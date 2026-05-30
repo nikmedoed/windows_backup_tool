@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, List, Any
 
 CONFIG_FILE = Path(os.getenv("APPDATA", ".")) / "BackupTool" / "config.json"
+TARGET_SETTINGS_REL = Path(".backup_versions") / "settings.json"
 
 
 @dataclass
@@ -28,6 +29,7 @@ class Settings:
     show_tray_icon: bool = True
     show_overlay: bool = True
     retention_keep_successful_runs: int = 0
+    exclude_patterns: List[str] = field(default_factory=list)
     last_success: Optional[str] = None
 
     def __post_init__(self):
@@ -48,6 +50,11 @@ class Settings:
                 or self.retention_keep_successful_runs < 0
         ):
             raise ValueError("Settings.retention_keep_successful_runs must be a non-negative integer")
+        if (
+                not isinstance(self.exclude_patterns, list)
+                or not all(isinstance(e, str) for e in self.exclude_patterns)
+        ):
+            raise ValueError("Settings.exclude_patterns must be List[str]")
         if self.last_success is not None and not isinstance(self.last_success, str):
             raise ValueError("Settings.last_success must be str or None")
 
@@ -57,24 +64,53 @@ class Settings:
             return None
         try:
             raw = CONFIG_FILE.read_text(encoding="utf-8")
-            data = json.loads(raw)
-            return cls(
-                target_dir=data["target_dir"],
-                sources=[PathRule(**r) for r in data.get("sources", [])],
-                wait_on_finish=data.get("wait_on_finish", True),
-                show_console=data.get("show_console", True),
-                show_tray_icon=data.get("show_tray_icon", True),
-                show_overlay=data.get("show_overlay", True),
-                retention_keep_successful_runs=data.get("retention_keep_successful_runs", 0),
-                last_success=data.get("last_success"),
-            )
+            return cls.from_payload(json.loads(raw))
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             raise RuntimeError(f"Failed to load config: {e}") from e
+
+    @classmethod
+    def load_from_target(cls, target_dir: str | Path) -> Optional["Settings"]:
+        path = target_settings_file(target_dir)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            settings = cls.from_payload(data)
+            settings.target_dir = str(Path(target_dir))
+            return settings
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+            raise RuntimeError(f"Failed to load target settings: {e}") from e
+
+    @classmethod
+    def from_payload(cls, data: dict[str, Any]) -> "Settings":
+        sources, migrated_patterns = _load_sources(data.get("sources", []))
+        return cls(
+            target_dir=data["target_dir"],
+            sources=sources,
+            wait_on_finish=data.get("wait_on_finish", True),
+            show_console=data.get("show_console", True),
+            show_tray_icon=data.get("show_tray_icon", True),
+            show_overlay=data.get("show_overlay", True),
+            retention_keep_successful_runs=data.get("retention_keep_successful_runs", 0),
+            exclude_patterns=_dedupe_strings([
+                *data.get("exclude_patterns", []),
+                *migrated_patterns,
+            ]),
+            last_success=data.get("last_success"),
+        )
 
     def save(self) -> None:
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with CONFIG_FILE.open("w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=2, ensure_ascii=False)
+
+    def save_to_target(self, target_dir: str | Path | None = None) -> Path:
+        path = target_settings_file(target_dir or self.target_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.tmp")
+        tmp.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
+        return path
 
     @staticmethod
     def _read_payload() -> Optional[dict[str, Any]]:
@@ -93,6 +129,42 @@ class Settings:
         payload.update({k: v for k, v in updates.items() if v is not None})
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         CONFIG_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_sources(raw_sources: Any) -> tuple[list[PathRule], list[str]]:
+    if not isinstance(raw_sources, list):
+        raise ValueError(f"Settings.sources must be a list, got {raw_sources!r}")
+    sources: list[PathRule] = []
+    migrated_patterns: list[str] = []
+    for raw in raw_sources:
+        if not isinstance(raw, dict):
+            raise ValueError(f"Invalid source rule: {raw!r}")
+        sources.append(PathRule(
+            source=raw["source"],
+            excludes=raw.get("excludes", []),
+        ))
+        patterns = raw.get("exclude_patterns", [])
+        if patterns:
+            if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns):
+                raise ValueError(f"Invalid source exclude_patterns: {patterns!r}")
+            migrated_patterns.extend(patterns)
+    return sources, migrated_patterns
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
+
+
+def target_settings_file(target_dir: str | Path) -> Path:
+    return Path(target_dir).expanduser().resolve() / TARGET_SETTINGS_REL
 
 
 if __name__ == "__main__":

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from src.utils import same_file
+from src.config import PathRule
+from src.utils import is_excluded_by_rule, same_file
 from src.version_store import SnapshotItem, VersionStore, mirror_relative_for_source
 
 _MTIME_TOLERANCE = 2.0
@@ -147,6 +148,7 @@ def build_restore_plan_for_sources(
         mode: str,
         export_root: Optional[Path] = None,
         compare_contents: bool = True,
+        exclude_patterns: Optional[list[str]] = None,
 ) -> RestorePlan:
     actions: list[RestoreAction] = []
     seen: set[tuple[str, str]] = set()
@@ -159,6 +161,7 @@ def build_restore_plan_for_sources(
         items = store.snapshot_for_source_root(run_id, scope)
         if not items:
             items = store.snapshot_for_scope(run_id, scope)
+        items = _filter_ignored_snapshot_items(rule, scope, items, exclude_patterns or [])
         plan = _build_restore_plan_from_items(
             store,
             run_id,
@@ -181,6 +184,24 @@ def build_restore_plan_for_sources(
         mode=mode,
         actions=actions,
     )
+
+
+def _filter_ignored_snapshot_items(
+        rule: object,
+        root: Path,
+        items: list[SnapshotItem],
+        exclude_patterns: list[str],
+) -> list[SnapshotItem]:
+    if not items:
+        return items
+    path_rule = rule if isinstance(rule, PathRule) else PathRule(
+        source=str(getattr(rule, "source")),
+        excludes=list(getattr(rule, "excludes", [])),
+    )
+    return [
+        item for item in items
+        if not is_excluded_by_rule(Path(item.source_path), path_rule, root=root, exclude_patterns=exclude_patterns)
+    ]
 
 
 def apply_restore_plan(

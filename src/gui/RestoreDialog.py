@@ -186,6 +186,7 @@ class RestoreDialog(QtWidgets.QDialog):
                     mode=str(mode),
                     export_root=export_root,
                     compare_contents=False,
+                    exclude_patterns=list(self._cfg.exclude_patterns),
                 )
                 self._plan_ready.emit(token, plan, "")
             except Exception as exc:

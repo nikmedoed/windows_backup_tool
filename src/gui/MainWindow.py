@@ -1,3 +1,4 @@
+import copy
 import threading
 import re
 from html import escape
@@ -16,9 +17,24 @@ from src.restore import apply_restore_plan
 from src.scheduler import exists, delete, schedule
 from src.utils import human_readable
 from src.version_store import VersionStore
+from src.zip_snapshot import create_zip_snapshots
 from .ExcludeDialog import ExcludeDialog
 from .RestoreDialog import RestoreDialog
 from .SizeWorker import SizeWorker
+
+DEFAULT_DEV_PATTERNS = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "node_modules",
+    "dist",
+    "build",
+    "*.pyc",
+    "*.pyo",
+]
 
 
 class _TightItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -29,10 +45,13 @@ class _TightItemDelegate(QtWidgets.QStyledItemDelegate):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    EXCLUSION_VALUE_ROLE = QtCore.Qt.UserRole + 11
+
     progressChanged = QtCore.Signal(int, int)
     logAppended = QtCore.Signal(str)
     backupFinished = QtCore.Signal(bool)
     restoreFinished = QtCore.Signal(bool)
+    zipFinished = QtCore.Signal(bool)
 
     def __init__(self, *, debug: bool = False, debug_path: Optional[str] = None):
         super().__init__()
@@ -45,6 +64,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logAppended.connect(self._append_log)
         self.backupFinished.connect(self._on_backup_finished)
         self.restoreFinished.connect(self._on_restore_finished)
+        self.zipFinished.connect(self._on_zip_finished)
         self._append_startup_log()
 
     def _build_ui(self):
@@ -135,14 +155,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lst_excl.setViewportMargins(2, 0, 0, 0)
         self.lst_excl.setStyleSheet(
             "QListView { padding: 0px; margin: 0px; } "
-            "QListWidget::item { padding: 0px; margin: 0px; } "
-            "QListWidget::item:selected { padding: 0px; margin: 0px; }"
+            "QListWidget::item { padding: 2px 6px; margin: 0px; } "
+            "QListWidget::item:selected { padding: 2px 6px; margin: 0px; }"
         )
+
+        self.lbl_patterns = QtWidgets.QLabel(_("Global exclude patterns:"))
+        self.lst_patterns = QtWidgets.QListWidget()
+        self.lst_patterns.setItemDelegate(_TightItemDelegate(self.lst_patterns))
+        self.lst_patterns.setSpacing(0)
+        self.lst_patterns.setContentsMargins(0, 0, 0, 0)
+        self.lst_patterns.setViewportMargins(2, 0, 0, 0)
+        self.lst_patterns.setStyleSheet(self.lst_excl.styleSheet())
+        self.lst_patterns.itemDoubleClicked.connect(lambda _item: self._edit_patterns())
+
         excl_layout = QtWidgets.QVBoxLayout()
         excl_layout.setContentsMargins(0, 0, 0, 0)
         excl_layout.setSpacing(6)
         excl_layout.addWidget(self.lbl_excl)
-        excl_layout.addWidget(self.lst_excl)
+        excl_layout.addWidget(self.lst_excl, 2)
+        excl_layout.addWidget(self.lbl_patterns)
+        excl_layout.addWidget(self.lst_patterns, 1)
+        pattern_btn_layout = QtWidgets.QHBoxLayout()
+        pattern_btn_layout.setContentsMargins(0, 0, 0, 0)
+        pattern_btn_layout.setSpacing(6)
+        for text, handler in [
+            (_("+ Pattern"), self._add_pattern),
+            (_("Edit patterns"), self._edit_patterns),
+        ]:
+            btn = QtWidgets.QPushButton(text)
+            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            btn.clicked.connect(handler)
+            pattern_btn_layout.addWidget(btn)
+        pattern_btn_layout.addStretch(1)
+        excl_layout.addLayout(pattern_btn_layout)
 
         schedule_group = QtWidgets.QGroupBox(_("Schedule"))
         schedule_layout = QtWidgets.QVBoxLayout(schedule_group)
@@ -263,13 +308,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         backup_actions = QtWidgets.QHBoxLayout()
         backup_actions.setContentsMargins(0, 0, 0, 0)
-        backup_actions.setSpacing(6)
+        backup_actions.setSpacing(3)
         self.btn_restore = QtWidgets.QPushButton(_("Restore version"))
-        self.btn_restore.setMinimumWidth(112)
+        self.btn_restore.setMinimumWidth(104)
         self.btn_restore.clicked.connect(self._restore)
         self.btn_run = QtWidgets.QPushButton(_("Run backup"))
-        self.btn_run.setMinimumWidth(96)
+        self.btn_run.setMinimumWidth(86)
         self.btn_run.clicked.connect(self._run)
+        self.btn_zip = QtWidgets.QPushButton(_("Zip"))
+        self.btn_zip.setFixedWidth(42)
+        self.btn_zip.clicked.connect(self._zip_snapshot)
         self.lbl_last_success_caption = QtWidgets.QLabel(_("Last backup:"))
         self.lbl_last_success_value = QtWidgets.QLabel()
         last_success_width = self.lbl_last_success_value.fontMetrics().horizontalAdvance("0000-00-00 00:00:00") + 4
@@ -277,11 +325,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lbl_last_success_value.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         backup_actions.addWidget(self.lbl_last_success_caption)
         backup_actions.addWidget(self.lbl_last_success_value)
-        backup_actions.addSpacing(2)
+        backup_actions.addSpacing(0)
         backup_actions.addWidget(self.btn_restore)
         backup_actions.addWidget(self.btn_run)
+        backup_actions.addWidget(self.btn_zip)
         backup_actions.addWidget(self.backup_status_label)
-        backup_actions.addStretch(1)
 
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setFixedHeight(10)
@@ -377,6 +425,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lst_src.addItem(rule.source)
         self.lst_src.setCurrentRow(0 if self.cfg.sources else -1)
         self._refresh_excludes()
+        self._refresh_patterns()
         for key, cb in self.schedule_controls.items():
             cb.setChecked(exists(key))
         self.chk_wait.setChecked(self.cfg.wait_on_finish)
@@ -418,7 +467,16 @@ class MainWindow(QtWidgets.QMainWindow):
         source = self.cfg.sources[row].source
         self.lbl_excl.setText(_("Exclusions for: {source}").format(source=source))
         for excl in self.cfg.sources[row].excludes:
-            self.lst_excl.addItem(excl)
+            item = QtWidgets.QListWidgetItem(excl)
+            item.setData(self.EXCLUSION_VALUE_ROLE, excl)
+            self.lst_excl.addItem(item)
+
+    def _refresh_patterns(self):
+        self.lst_patterns.clear()
+        for pattern in self.cfg.exclude_patterns:
+            item = QtWidgets.QListWidgetItem(pattern)
+            item.setData(self.EXCLUSION_VALUE_ROLE, pattern)
+            self.lst_patterns.addItem(item)
 
     def _edit_excludes(self):
         dialog = ExcludeDialog(self.cfg, self)
@@ -429,18 +487,52 @@ class MainWindow(QtWidgets.QMainWindow):
             self._refresh_excludes()
             self._update_backup_size()
 
+    def _add_pattern(self) -> None:
+        pattern, ok = QtWidgets.QInputDialog.getText(
+            self,
+            _("Add pattern"),
+            _("Glob pattern:"),
+        )
+        pattern = pattern.strip()
+        if not ok or not pattern:
+            return
+        if pattern.casefold() not in {p.casefold() for p in self.cfg.exclude_patterns}:
+            self.cfg.exclude_patterns.append(pattern)
+        self._refresh_patterns()
+        self._update_backup_size()
+
+    def _edit_patterns(self) -> None:
+        dialog = PatternDialog(self.cfg.exclude_patterns, self)
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        self.cfg.exclude_patterns = dialog.patterns()
+        self._refresh_patterns()
+        self._update_backup_size()
+
+    @staticmethod
+    def _dedupe_strings(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            key = value.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(value)
+        return result
+
     def _save(self):
         target = self.le_target.text().strip()
         if not target:
             QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
             return
-        self.cfg.target_dir = target
-        self.cfg.wait_on_finish = self.chk_wait.isChecked()
-        self.cfg.show_console = self.chk_console.isChecked()
-        self.cfg.show_tray_icon = self.chk_tray.isChecked()
-        self.cfg.show_overlay = self.chk_overlay.isChecked()
-        self.cfg.retention_keep_successful_runs = self.spn_retention.value()
+        self._apply_form_to_config()
         self.cfg.save()
+        target_settings_error = None
+        try:
+            self.cfg.save_to_target(target)
+        except Exception as exc:
+            target_settings_error = exc
         for key, cb in self.schedule_controls.items():
             if cb.isChecked():
                 if not exists(key):
@@ -449,8 +541,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 if exists(key):
                     delete(key)
 
-        self.settings_status_label.setText(_("Saved"))
+        self.settings_status_label.setText(_("Saved") if target_settings_error is None else _("Saved locally"))
+        if target_settings_error is not None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                _("Settings"),
+                _("Saved local settings, but could not write settings to backup target: {exc}").format(
+                    exc=target_settings_error,
+                ),
+            )
         self._update_backup_size()
+
+    def _apply_form_to_config(self) -> None:
+        self.cfg.target_dir = self.le_target.text().strip()
+        self.cfg.wait_on_finish = self.chk_wait.isChecked()
+        self.cfg.show_console = self.chk_console.isChecked()
+        self.cfg.show_tray_icon = self.chk_tray.isChecked()
+        self.cfg.show_overlay = self.chk_overlay.isChecked()
+        self.cfg.retention_keep_successful_runs = self.spn_retention.value()
 
     def _reload_saved_settings(self):
         loaded = Settings.load()
@@ -466,7 +574,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not target:
             QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
             return
-        self.cfg.target_dir = target
+        self._apply_form_to_config()
 
         store = VersionStore(Path(target))
         try:
@@ -477,7 +585,14 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.information(self, _("Restore"), _("No backup versions found"))
             return
 
-        dialog = RestoreDialog(self.cfg, Path(target), runs, self)
+        try:
+            restore_cfg = Settings.load_from_target(target) or copy.deepcopy(self.cfg)
+        except RuntimeError as exc:
+            QtWidgets.QMessageBox.warning(self, _("Restore"), str(exc))
+            return
+        restore_cfg.target_dir = target
+
+        dialog = RestoreDialog(restore_cfg, Path(target), runs, self)
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
         request = dialog.request()
@@ -523,6 +638,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.backup_status_label.setText("...")
         self.btn_run.setEnabled(False)
         self.btn_restore.setEnabled(False)
+        self.btn_zip.setEnabled(False)
 
         def _job():
             worker_store = VersionStore(Path(target))
@@ -543,7 +659,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.size_label.setText(_("Size: calculating…"))
         if hasattr(self, '_size_worker') and self._size_worker.isRunning():
             return
-        self._size_worker = SizeWorker(self.cfg.sources)
+        self._size_worker = SizeWorker(self.cfg.sources, self.cfg.exclude_patterns)
         self._size_worker.sizeCalculated.connect(self._on_size_calculated)
         self._size_worker.start()
 
@@ -553,14 +669,24 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
     def _run(self):
+        target = self.le_target.text().strip()
+        if not target:
+            QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
+            return
+        if not self.cfg.sources:
+            QtWidgets.QMessageBox.warning(self, _("Error"), _("Please add at least one source directory"))
+            return
+        self._apply_form_to_config()
+        cfg = copy.deepcopy(self.cfg)
         self._reset_log()
         self.progress_bar.setValue(0)
         self.backup_status_label.setText("...")
         self.btn_run.setEnabled(False)
         self.btn_restore.setEnabled(False)
+        self.btn_zip.setEnabled(False)
         def _job():
             success = run_backup(
-                self.cfg,
+                cfg,
                 self.progressChanged.emit,
                 self.logAppended.emit,
                 debug=self._debug,
@@ -569,8 +695,39 @@ class MainWindow(QtWidgets.QMainWindow):
             self.backupFinished.emit(success)
         threading.Thread(target=_job, daemon=True).start()
 
+    def _zip_snapshot(self):
+        target = self.le_target.text().strip()
+        if not target:
+            QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
+            return
+        if not self.cfg.sources:
+            QtWidgets.QMessageBox.warning(self, _("Error"), _("Please add at least one source directory"))
+            return
+        self._apply_form_to_config()
+        cfg = copy.deepcopy(self.cfg)
+        self._reset_log()
+        self.progress_bar.setValue(0)
+        self.backup_status_label.setText("...")
+        self.btn_run.setEnabled(False)
+        self.btn_restore.setEnabled(False)
+        self.btn_zip.setEnabled(False)
+
+        def _job():
+            result = create_zip_snapshots(
+                cfg,
+                progress_cb=self.progressChanged.emit,
+                log_cb=self.logAppended.emit,
+            )
+            self.zipFinished.emit(not result.errors)
+        threading.Thread(target=_job, daemon=True).start()
+
     def _handle_progress(self, i: int, tot: int):
-        self.progress_bar.setValue(int(i / tot * 100) if tot else 100)
+        if tot <= 0:
+            self.progress_bar.setRange(0, 0)
+            return
+        if self.progress_bar.maximum() == 0:
+            self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(int(i / tot * 100))
 
     def _append_log(self, message: str):
         cursor = self.txt_log.textCursor()
@@ -605,16 +762,99 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lbl_last_success_value.setText(_("never"))
 
     def _on_backup_finished(self, success: bool):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100 if success else self.progress_bar.value())
         self.btn_run.setEnabled(True)
         self.btn_restore.setEnabled(True)
+        self.btn_zip.setEnabled(True)
         self.backup_status_label.setText(_("Done") if success else _("Error"))
         self._update_last_success_label()
         self._update_backup_size()
 
     def _on_restore_finished(self, success: bool):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100 if success else self.progress_bar.value())
         self.btn_run.setEnabled(True)
         self.btn_restore.setEnabled(True)
+        self.btn_zip.setEnabled(True)
         self.backup_status_label.setText(_("Done") if success else _("Error"))
+
+    def _on_zip_finished(self, success: bool):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100 if success else self.progress_bar.value())
+        self.btn_run.setEnabled(True)
+        self.btn_restore.setEnabled(True)
+        self.btn_zip.setEnabled(True)
+        self.backup_status_label.setText(_("Done") if success else _("Error"))
+
+
+class PatternDialog(QtWidgets.QDialog):
+    def __init__(self, patterns: list[str], parent: QtWidgets.QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle(_("Global exclude patterns"))
+        self.resize(560, 460)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        hint_layout = QtWidgets.QHBoxLayout()
+        hint_layout.setSpacing(16)
+        hint_left = QtWidgets.QLabel(_(
+            "How to edit:\n"
+            "• one pattern per line\n"
+            "• delete a line to remove it\n"
+            "• empty lines are ignored"
+        ))
+        hint_right = QtWidgets.QLabel(_(
+            "Matching:\n"
+            "• names without / match any file or folder name\n"
+            "• patterns with / match source-relative paths\n"
+            "• examples: .venv, __pycache__, *.pyc"
+        ))
+        for hint in (hint_left, hint_right):
+            hint.setWordWrap(True)
+            hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
+            hint_layout.addWidget(hint, 1)
+        layout.addLayout(hint_layout)
+
+        self.editor = QtWidgets.QPlainTextEdit()
+        self.editor.setPlainText("\n".join(patterns))
+        self.editor.setPlaceholderText(".venv\n__pycache__\nnode_modules\n*.pyc")
+        self.editor.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
+        self.editor.setStyleSheet(
+            "QPlainTextEdit {"
+            "  padding: 6px;"
+            "  font-family: Consolas, 'Cascadia Mono', monospace;"
+            "}"
+        )
+        layout.addWidget(self.editor, 1)
+
+        actions = QtWidgets.QHBoxLayout()
+        btn_defaults = QtWidgets.QPushButton(_("Add dev defaults"))
+        btn_defaults.clicked.connect(self._add_dev_defaults)
+        actions.addWidget(btn_defaults)
+        actions.addStretch(1)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        actions.addWidget(buttons)
+        layout.addLayout(actions)
+
+    def patterns(self) -> list[str]:
+        return MainWindow._dedupe_strings([
+            line.strip()
+            for line in self.editor.toPlainText().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ])
+
+    def _add_dev_defaults(self) -> None:
+        self.editor.setPlainText("\n".join(
+            MainWindow._dedupe_strings([*self.patterns(), *DEFAULT_DEV_PATTERNS])
+        ))
 
 
 def _format_log_entry(message: str) -> str:

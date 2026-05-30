@@ -30,6 +30,10 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
   Restore a folder or a single file to original paths, or export a selected version to another folder.
 - **Exclusion dialog**  
   Easily select which folders/files to include or exclude.
+- **Glob exclusion patterns**
+  Skip repeated development junk such as `.venv`, `__pycache__`, `node_modules`, `dist`, or `*.pyc` without selecting every folder manually.
+- **Zip snapshots**
+  Create dated zip snapshot folders in the backup target, with one archive per configured source and the same exclusion rules as normal backups.
 - **Live size estimate**  
   Dynamically shows the estimated backup size after applying exclusions.
 - **Scheduler integration**  
@@ -111,6 +115,16 @@ deletes an existing file, it saves that current file under
 does not update the latest mirror and does not create a backup version.
 The mirror is updated later by the next scheduled or manual backup run.
 If a backup run finds no changes, it also does not create an extra version.
+The effective source list and exclusion settings are also written to
+`BackupTarget\.backup_versions\settings.json`, so restore/export on another
+machine can apply the same ignore rules from the synchronized target.
+
+The **Zip snapshot** button is separate from normal versioned backups. It
+creates a dated folder under `BackupTarget\zip_snapshots\YYYYMMDD_HHMMSS`
+and writes one `.zip` archive for each configured source. Archive contents use
+paths relative to each source folder and apply the same selected exclusions and
+global glob patterns. This is intended as a coarse fallback snapshot when the
+plain mirror is being synchronized by another tool such as OneDrive.
 
 When restoring to a separate folder, the tool does not patch or touch original
 files. It exports the full selected version for the configured sources using the same
