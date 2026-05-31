@@ -11,6 +11,7 @@ from typing import Callable, Optional
 
 from src.i18n import _
 from .config import PathRule, Settings
+from .exclusions import nested_target_excludes
 from .utils import iter_files
 
 
@@ -133,7 +134,15 @@ def create_zip_snapshots(
                 archive=archive_path,
             ))
 
-    _write_manifest(snapshot_dir, archives, errors, cfg.exclude_patterns)
+    try:
+        _write_manifest(snapshot_dir, archives, errors, cfg.exclude_patterns)
+    except Exception as exc:
+        message = _("Could not write zip manifest \"{path}\": {exc}").format(
+            path=snapshot_dir / "manifest.json",
+            exc=exc,
+        )
+        errors.append(message)
+        _log(message)
     _progress(1, 1)
     if errors:
         _log(_("Zip snapshot finished with errors: {count}").format(count=len(errors)))
@@ -197,14 +206,9 @@ def _publish_staged_archive(staged_archive_path: Path, archive_path: Path) -> No
 
 
 def _rule_without_target(rule: PathRule, source_root: Path, target_root: Path) -> PathRule:
-    try:
-        rel = target_root.relative_to(source_root)
-    except ValueError:
+    excludes = nested_target_excludes(rule.excludes, source_root, target_root)
+    if excludes is None:
         return rule
-    rel_s = str(rel) if str(rel) else "."
-    excludes = list(rule.excludes)
-    if rel_s not in excludes:
-        excludes.append(rel_s)
     return PathRule(source=rule.source, excludes=excludes)
 
 

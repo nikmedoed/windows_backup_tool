@@ -12,7 +12,8 @@ from typing import Callable, Optional
 
 from src.i18n import _
 from .config import PathRule, Settings
-from .utils import DebugLog, is_excluded_by_rule, iter_files, notify_user, sha1
+from .exclusions import is_excluded_by_rule, nested_target_excludes
+from .utils import DebugLog, iter_files, notify_user, sha1
 from .version_store import FileRecord, VersionStore, mirror_relative_for_source, source_roots_for_rules
 
 _PROGRESS_LOG_INTERVAL_SECONDS = 5.0
@@ -473,14 +474,9 @@ def _needs_successful_version(record: Optional[FileRecord], successful_run_ids: 
 
 
 def _rule_without_backup_target(rule: PathRule, source_root: Path, target_root: Path, *, dbg: DebugLog) -> PathRule:
-    try:
-        rel = target_root.relative_to(source_root)
-    except ValueError:
+    excludes = nested_target_excludes(rule.excludes, source_root, target_root)
+    if excludes is None:
         return rule
-    rel_s = str(rel) if str(rel) else "."
-    excludes = list(rule.excludes)
-    if rel_s not in excludes:
-        excludes.append(rel_s)
     if dbg.enabled:
         dbg.log(f"SKIP_BACKUP_TARGET_UNDER_SOURCE: {target_root}")
     return PathRule(source=rule.source, excludes=excludes)

@@ -1,5 +1,4 @@
 import ctypes
-import fnmatch
 import hashlib
 import io
 import math
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Final, Iterable, Optional
 
 from src.config import PathRule
+from src.exclusions import ExclusionMatcher, is_reparse_or_symlink
 
 _MTIME_TOLERANCE: Final[float] = 2.0
 
@@ -94,57 +94,54 @@ def iter_files(
     Generate all files under rule.source, excluding any paths in rule.excludes.
     If debug_log is provided, emit short traversal notes.
     """
-    return _iter_files(rule, debug_log=debug_log, exclude_patterns=exclude_patterns)
+    def _emit(event: str, detail: str) -> None:
+        if debug_log:
+            debug_log(f"{event}: {detail}")
 
+    root = Path(rule.source).expanduser().resolve()
+    if not root.exists():
+        _emit("RULE_MISSING", str(root))
+        return
 
-def is_excluded_by_rule(
-        path: Path,
-        rule: PathRule,
-        *,
-        root: Optional[Path] = None,
-        exclude_patterns: Optional[list[str]] = None,
-) -> bool:
-    """
-    Return True when path is excluded by explicit relative paths or glob patterns.
-    """
-    root = root or Path(rule.source).expanduser().resolve()
     matcher = ExclusionMatcher(root, rule.excludes, exclude_patterns or [])
-    return matcher.skip(path)
 
+    def _fmt(p: Path) -> str:
+        try:
+            return str(p.relative_to(root)) or "."
+        except ValueError:
+            return str(p)
 
-class ExclusionMatcher:
-    def __init__(self, root: Path, excludes: list[str], patterns: list[str]):
-        self.root = root
-        self.excluded_paths = self._resolve_excluded_paths(excludes)
-        self.patterns = [_normalize_pattern(p) for p in patterns if p.strip()]
+    _emit("RULE", str(root))
+    if matcher.describe_excludes():
+        _emit("EXCLUDES", ", ".join(_fmt(e) for e in matcher.describe_excludes()))
+    else:
+        _emit("EXCLUDES", "-")
+    if matcher.patterns:
+        _emit("EXCLUDE_PATTERNS", ", ".join(matcher.patterns))
 
-    def skip(self, path: Path) -> bool:
-        if any(path.is_relative_to(ex) for ex in self.excluded_paths):
-            return True
-        if not self.patterns:
-            return False
-        rel = _relative_posix(path, self.root)
-        parts = rel.split("/") if rel else []
-        for pattern in self.patterns:
-            if "/" not in pattern:
-                if any(fnmatch.fnmatchcase(part.casefold(), pattern) for part in parts):
-                    return True
-                continue
-            if fnmatch.fnmatchcase(rel.casefold(), pattern):
-                return True
-        return False
-
-    def describe_excludes(self) -> list[Path]:
-        return self.excluded_paths
-
-    def _resolve_excluded_paths(self, excludes: list[str]) -> list[Path]:
-        resolved: list[Path] = []
-        for ex in excludes:
-            path = (self.root / Path(ex)).absolute()
-            if _is_link(path):
-                continue
-            resolved.append(path)
-        return resolved
+    stack = [root]
+    while stack:
+        cur = stack.pop()
+        if matcher.skip(cur):
+            _emit("SKIP_EXCLUDED", _fmt(cur))
+            continue
+        _emit("ENTER", _fmt(cur))
+        try:
+            with os.scandir(cur) as it:
+                for entry in it:
+                    path = Path(entry.path)
+                    if is_reparse_or_symlink(path, entry):
+                        _emit("SKIP_LINK", _fmt(path))
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if matcher.skip(path):
+                            _emit("SKIP_EXCLUDED", _fmt(path))
+                            continue
+                        stack.append(path)
+                    elif entry.is_file(follow_symlinks=False) and not matcher.skip(path):
+                        yield path
+        except (PermissionError, FileNotFoundError) as exc:
+            _emit("SKIP_INACCESSIBLE", f"{_fmt(cur)} [{type(exc).__name__}]")
 
 
 class DebugLog:
@@ -190,94 +187,6 @@ class DebugLog:
                 self._fh.close()
             finally:
                 self._fh = None
-
-
-def _is_link(path: Path, entry: Optional[os.DirEntry] = None) -> bool:
-    if os.name != "nt":
-        if entry is not None:
-            try:
-                return entry.is_symlink()
-            except OSError:
-                return False
-        return path.is_symlink()
-    try:
-        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
-        if attrs == -1:
-            return False
-        return bool(attrs & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
-    except Exception:
-        if entry is not None:
-            try:
-                return entry.is_symlink()
-            except OSError:
-                return False
-        return path.is_symlink()
-
-
-def _normalize_pattern(pattern: str) -> str:
-    return pattern.strip().replace("\\", "/").strip("/").casefold()
-
-
-def _relative_posix(path: Path, root: Path) -> str:
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
-def _iter_files(
-        rule: PathRule,
-        debug_log: Optional[Callable[[str], None]] = None,
-        exclude_patterns: Optional[list[str]] = None,
-) -> Iterable[Path]:
-    def _emit(event: str, detail: str) -> None:
-        if debug_log:
-            debug_log(f"{event}: {detail}")
-
-    root = Path(rule.source).expanduser().resolve()
-    if not root.exists():
-        _emit("RULE_MISSING", str(root))
-        return
-
-    matcher = ExclusionMatcher(root, rule.excludes, exclude_patterns or [])
-
-    def _fmt(p: Path) -> str:
-        try:
-            return str(p.relative_to(root)) or "."
-        except ValueError:
-            return str(p)
-
-    _emit("RULE", str(root))
-    if matcher.describe_excludes():
-        _emit("EXCLUDES", ", ".join(_fmt(e) for e in matcher.describe_excludes()))
-    else:
-        _emit("EXCLUDES", "-")
-    if matcher.patterns:
-        _emit("EXCLUDE_PATTERNS", ", ".join(matcher.patterns))
-
-    stack = [root]
-    while stack:
-        cur = stack.pop()
-        if matcher.skip(cur):
-            _emit("SKIP_EXCLUDED", _fmt(cur))
-            continue
-        _emit("ENTER", _fmt(cur))
-        try:
-            with os.scandir(cur) as it:
-                for entry in it:
-                    path = Path(entry.path)
-                    if _is_link(path, entry):
-                        _emit("SKIP_LINK", _fmt(path))
-                        continue
-                    if entry.is_dir(follow_symlinks=False):
-                        if matcher.skip(path):
-                            _emit("SKIP_EXCLUDED", _fmt(path))
-                            continue
-                        stack.append(path)
-                    elif entry.is_file(follow_symlinks=False) and not matcher.skip(path):
-                        yield path
-        except (PermissionError, FileNotFoundError) as exc:
-            _emit("SKIP_INACCESSIBLE", f"{_fmt(cur)} [{type(exc).__name__}]")
 
 
 @lru_cache(maxsize=None)

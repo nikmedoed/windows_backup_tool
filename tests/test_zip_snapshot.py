@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from src.config import PathRule, Settings
 from src.zip_snapshot import create_zip_snapshots
@@ -100,6 +101,21 @@ class ZipSnapshotTests(unittest.TestCase):
         self.assertEqual(len(manifest["archives"]), 1)
         self.assertEqual(manifest["archives"][0]["files"], 1)
         self.assertEqual(manifest["errors"], [])
+
+    def test_manifest_write_error_is_reported(self) -> None:
+        (self.source_one / "file.txt").write_text("content", encoding="utf-8")
+        cfg = Settings(
+            target_dir=str(self.target),
+            sources=[PathRule(source=str(self.source_one))],
+            wait_on_finish=False,
+        )
+
+        with mock.patch("src.zip_snapshot._write_manifest", side_effect=OSError("disk full")):
+            result = create_zip_snapshots(cfg, progress_cb=lambda _i, _t: None, log_cb=lambda _m: None)
+
+        self.assertEqual(len(result.archives), 1)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn("manifest", result.errors[0])
 
     def test_writes_restore_settings_to_target_without_leftover_tmp_archives(self) -> None:
         (self.source_one / "file.txt").write_text("content", encoding="utf-8")

@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from src.config import PathRule
-from src.utils import is_excluded_by_rule, same_file
+from src.exclusions import is_excluded_by_rule
+from src.utils import same_file
 from src.version_store import SnapshotItem, VersionStore, mirror_relative_for_source
 
 _MTIME_TOLERANCE = 2.0

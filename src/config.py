@@ -4,6 +4,8 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Any
 
+from src.exclusions import dedupe_strings, load_exclude_patterns
+
 CONFIG_FILE = Path(os.getenv("APPDATA", ".")) / "BackupTool" / "config.json"
 TARGET_SETTINGS_REL = Path(".backup_versions") / "settings.json"
 
@@ -83,6 +85,8 @@ class Settings:
 
     @classmethod
     def from_payload(cls, data: dict[str, Any]) -> "Settings":
+        if not isinstance(data, dict):
+            raise ValueError(f"Settings payload must be an object, got {data!r}")
         sources, migrated_patterns = _load_sources(data.get("sources", []))
         return cls(
             target_dir=data["target_dir"],
@@ -92,8 +96,8 @@ class Settings:
             show_tray_icon=data.get("show_tray_icon", True),
             show_overlay=data.get("show_overlay", True),
             retention_keep_successful_runs=data.get("retention_keep_successful_runs", 0),
-            exclude_patterns=_dedupe_strings([
-                *data.get("exclude_patterns", []),
+            exclude_patterns=dedupe_strings([
+                *load_exclude_patterns(data.get("exclude_patterns", []), "Settings.exclude_patterns"),
                 *migrated_patterns,
             ]),
             last_success=data.get("last_success"),
@@ -143,24 +147,10 @@ def _load_sources(raw_sources: Any) -> tuple[list[PathRule], list[str]]:
             source=raw["source"],
             excludes=raw.get("excludes", []),
         ))
-        patterns = raw.get("exclude_patterns", [])
-        if patterns:
-            if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns):
-                raise ValueError(f"Invalid source exclude_patterns: {patterns!r}")
-            migrated_patterns.extend(patterns)
+        migrated_patterns.extend(
+            load_exclude_patterns(raw.get("exclude_patterns", []), "PathRule.exclude_patterns")
+        )
     return sources, migrated_patterns
-
-
-def _dedupe_strings(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        key = value.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(value)
-    return result
 
 
 def target_settings_file(target_dir: str | Path) -> Path:

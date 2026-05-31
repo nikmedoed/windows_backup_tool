@@ -19,22 +19,9 @@ from src.utils import human_readable
 from src.version_store import VersionStore
 from src.zip_snapshot import create_zip_snapshots
 from .ExcludeDialog import ExcludeDialog
+from .PatternDialog import PatternDialog
 from .RestoreDialog import RestoreDialog
 from .SizeWorker import SizeWorker
-
-DEFAULT_DEV_PATTERNS = [
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".ruff_cache",
-    "node_modules",
-    "dist",
-    "build",
-    "*.pyc",
-    "*.pyo",
-]
 
 
 class _TightItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -509,18 +496,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._refresh_patterns()
         self._update_backup_size()
 
-    @staticmethod
-    def _dedupe_strings(values: list[str]) -> list[str]:
-        seen: set[str] = set()
-        result: list[str] = []
-        for value in values:
-            key = value.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            result.append(value)
-        return result
-
     def _save(self):
         target = self.le_target.text().strip()
         if not target:
@@ -713,12 +688,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_zip.setEnabled(False)
 
         def _job():
-            result = create_zip_snapshots(
-                cfg,
-                progress_cb=self.progressChanged.emit,
-                log_cb=self.logAppended.emit,
-            )
-            self.zipFinished.emit(not result.errors)
+            success = False
+            try:
+                result = create_zip_snapshots(
+                    cfg,
+                    progress_cb=self.progressChanged.emit,
+                    log_cb=self.logAppended.emit,
+                )
+                success = not result.errors
+            except Exception as exc:
+                self.logAppended.emit(_("Zip snapshot failed: {exc}").format(exc=exc))
+            finally:
+                self.zipFinished.emit(success)
         threading.Thread(target=_job, daemon=True).start()
 
     def _handle_progress(self, i: int, tot: int):
@@ -786,77 +767,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_restore.setEnabled(True)
         self.btn_zip.setEnabled(True)
         self.backup_status_label.setText(_("Done") if success else _("Error"))
-
-
-class PatternDialog(QtWidgets.QDialog):
-    def __init__(self, patterns: list[str], parent: QtWidgets.QWidget | None = None):
-        super().__init__(parent)
-        self.setWindowTitle(_("Global exclude patterns"))
-        self.resize(560, 460)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setSpacing(8)
-
-        hint_layout = QtWidgets.QHBoxLayout()
-        hint_layout.setSpacing(16)
-        hint_left = QtWidgets.QLabel(_(
-            "How to edit:\n"
-            "• one pattern per line\n"
-            "• delete a line to remove it\n"
-            "• empty lines are ignored"
-        ))
-        hint_right = QtWidgets.QLabel(_(
-            "Matching:\n"
-            "• names without / match any file or folder name\n"
-            "• patterns with / match source-relative paths\n"
-            "• examples: .venv, __pycache__, *.pyc"
-        ))
-        for hint in (hint_left, hint_right):
-            hint.setWordWrap(True)
-            hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
-            hint_layout.addWidget(hint, 1)
-        layout.addLayout(hint_layout)
-
-        self.editor = QtWidgets.QPlainTextEdit()
-        self.editor.setPlainText("\n".join(patterns))
-        self.editor.setPlaceholderText(".venv\n__pycache__\nnode_modules\n*.pyc")
-        self.editor.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
-        self.editor.setStyleSheet(
-            "QPlainTextEdit {"
-            "  padding: 6px;"
-            "  font-family: Consolas, 'Cascadia Mono', monospace;"
-            "}"
-        )
-        layout.addWidget(self.editor, 1)
-
-        actions = QtWidgets.QHBoxLayout()
-        btn_defaults = QtWidgets.QPushButton(_("Add dev defaults"))
-        btn_defaults.clicked.connect(self._add_dev_defaults)
-        actions.addWidget(btn_defaults)
-        actions.addStretch(1)
-
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok
-            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        actions.addWidget(buttons)
-        layout.addLayout(actions)
-
-    def patterns(self) -> list[str]:
-        return MainWindow._dedupe_strings([
-            line.strip()
-            for line in self.editor.toPlainText().splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        ])
-
-    def _add_dev_defaults(self) -> None:
-        self.editor.setPlainText("\n".join(
-            MainWindow._dedupe_strings([*self.patterns(), *DEFAULT_DEV_PATTERNS])
-        ))
-
-
 def _format_log_entry(message: str) -> str:
     level = _log_level(message)
     label, color, background, border = _log_style(level)
