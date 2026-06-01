@@ -5,6 +5,7 @@ from typing import Dict, List
 from PySide6 import QtCore, QtWidgets, QtGui
 
 from src.config import Settings
+from src.exclusions import ExclusionMatcher
 from src.i18n import _
 from src.utils import human_readable
 
@@ -17,6 +18,9 @@ class ExcludeDialog(QtWidgets.QDialog):
     def __init__(self, cfg: Settings, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self._cfg = cfg
+        self._matchers: dict[Path, ExclusionMatcher] = {}
+        self._saved_excludes: Dict[str, List[str]] | None = None
+        self._loading_checks = False
 
         self.setWindowTitle(_("Exclusions"))
         self.resize(0, 640)
@@ -30,6 +34,7 @@ class ExcludeDialog(QtWidgets.QDialog):
 
         self._populate_roots()
         self._restore_checks()
+        self._mark_clean()
         self._update_legend_async()
 
         btn_layout = self.layout().itemAt(0).layout()
@@ -48,13 +53,16 @@ class ExcludeDialog(QtWidgets.QDialog):
             (_("Select All"), lambda: self._set_state(QtCore.Qt.Checked)),
             (_("Deselect All"), lambda: self._set_state(QtCore.Qt.Unchecked)),
             (_("Full Height"), self._stretch_h),
-            (_("Save"), self.accept),
         ]
         hbtn = QtWidgets.QHBoxLayout()
         for txt, slot in btns:
             b = QtWidgets.QPushButton(txt)
             b.clicked.connect(slot)
             hbtn.addWidget(b)
+        self.btn_save = QtWidgets.QPushButton(_("Save"))
+        self._save_button_base_style = self.btn_save.styleSheet()
+        self.btn_save.clicked.connect(self.accept)
+        hbtn.addWidget(self.btn_save)
         hbtn.addStretch(1)
         vbox.addLayout(hbtn)
 
@@ -81,6 +89,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         self.tree.clear()
         for rule in self._cfg.sources:
             root = Path(rule.source).expanduser().resolve()
+            self._matchers[root] = ExclusionMatcher(root, [], self._cfg.exclude_patterns)
             itm = self._make_item(root.name, root, is_dir=True)
             self.tree.addTopLevelItem(itm)
 
@@ -111,9 +120,12 @@ class ExcludeDialog(QtWidgets.QDialog):
                 parent_state = parent.checkState(0)
                 with os.scandir(path) as it:
                     for entry in it:
+                        child_path = Path(entry.path)
+                        if self._is_pattern_ignored(child_path):
+                            continue
                         child = self._make_item(
                             entry.name,
-                            Path(entry.path),
+                            child_path,
                             entry.is_dir(follow_symlinks=False)
                         )
                         if parent_state != QtCore.Qt.PartiallyChecked:
@@ -125,6 +137,19 @@ class ExcludeDialog(QtWidgets.QDialog):
             QtWidgets.QApplication.restoreOverrideCursor()
             parent.setData(0, self.LOADED_ROLE, True)
 
+    def _is_pattern_ignored(self, path: Path) -> bool:
+        best_root: Path | None = None
+        best_matcher: ExclusionMatcher | None = None
+        for root, matcher in self._matchers.items():
+            try:
+                path.relative_to(root)
+            except ValueError:
+                continue
+            if best_root is None or len(root.parts) > len(best_root.parts):
+                best_root = root
+                best_matcher = matcher
+        return best_matcher.skip(path) if best_matcher is not None else False
+
     def _on_expand(self, item):
         self._load_children(item)
 
@@ -132,6 +157,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         with QtCore.QSignalBlocker(self.tree):
             self._set_state_rec(self.tree.invisibleRootItem(), state)
         self._update_legend_async()
+        self._update_dirty_state()
 
     def _set_state_rec(self, itm, st):
         itm.setCheckState(0, st)
@@ -143,6 +169,7 @@ class ExcludeDialog(QtWidgets.QDialog):
             self._propagate_down(item)
             self._bubble_up(item)
         self._update_legend_async()
+        self._update_dirty_state()
 
     def _propagate_down(self, itm):
         state = itm.checkState(0)
@@ -167,6 +194,7 @@ class ExcludeDialog(QtWidgets.QDialog):
         self._bubble_up(pr)
 
     def _restore_checks(self):
+        self._loading_checks = True
         for idx, rule in enumerate(self._cfg.sources):
             root_itm = self.tree.topLevelItem(idx)
             root_path = Path(rule.source).expanduser().resolve()
@@ -192,6 +220,23 @@ class ExcludeDialog(QtWidgets.QDialog):
 
                 if cur_item is not None:
                     cur_item.setCheckState(0, QtCore.Qt.Checked)
+        self._loading_checks = False
+
+    def _mark_clean(self) -> None:
+        self._saved_excludes = self.get_excludes()
+        self._update_dirty_state()
+
+    def _update_dirty_state(self) -> None:
+        if self._loading_checks or self._saved_excludes is None:
+            return
+        dirty = self.get_excludes() != self._saved_excludes
+        if dirty:
+            self.btn_save.setStyleSheet(
+                f"{self._save_button_base_style} "
+                "QPushButton { background-color: #b66a00; color: white; font-weight: 700; }"
+            )
+        else:
+            self.btn_save.setStyleSheet(self._save_button_base_style)
 
     def _update_legend_async(self):
         self._legend_timer.start()

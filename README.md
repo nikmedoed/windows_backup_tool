@@ -31,7 +31,7 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
 - **Exclusion dialog**  
   Easily select which folders/files to include or exclude.
 - **Glob exclusion patterns**
-  Skip repeated development junk such as `.venv`, `__pycache__`, `node_modules`, `dist`, or `*.pyc` without selecting every folder manually.
+  Skip repeated OS/editor/build junk such as `Thumbs.db`, `.DS_Store`, `.venv`, `node_modules`, `dist`, or `*.tmp` without selecting every folder manually.
 - **Zip snapshots**
   Create dated zip snapshot folders in the backup target, with one archive per configured source and the same exclusion rules as normal backups.
 - **Live size estimate**  

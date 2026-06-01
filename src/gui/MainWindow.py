@@ -46,6 +46,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg = Settings.load() or Settings(target_dir="")
         self._debug = debug
         self._debug_path = debug_path
+        self._saved_form_state: dict | None = None
+        self._loading_fields = False
         self._build_ui()
         self.progressChanged.connect(self._handle_progress)
         self.logAppended.connect(self._append_log)
@@ -279,6 +281,8 @@ class MainWindow(QtWidgets.QMainWindow):
         settings_actions.setSpacing(6)
         settings_actions.addWidget(QtWidgets.QLabel(_("Settings")))
         btn_save = QtWidgets.QPushButton(_("Save settings"))
+        self.btn_save = btn_save
+        self._save_button_base_style = btn_save.styleSheet()
         btn_save.setMinimumWidth(98)
         btn_save.clicked.connect(self._save)
         btn_reload = QtWidgets.QPushButton(_("Reload saved"))
@@ -368,7 +372,20 @@ class MainWindow(QtWidgets.QMainWindow):
         root_layout.addLayout(target_layout)
         root_layout.addLayout(body_layout, 1)
 
-        self._load_fields()
+        self._load_fields(mark_clean=self._saved_form_state is None)
+        self._connect_dirty_signals()
+
+    def _connect_dirty_signals(self) -> None:
+        self.le_target.textChanged.connect(self._update_dirty_state)
+        self.spn_retention.valueChanged.connect(self._update_dirty_state)
+        for cb in (
+                *self.schedule_controls.values(),
+                self.chk_wait,
+                self.chk_console,
+                self.chk_tray,
+                self.chk_overlay,
+        ):
+            cb.toggled.connect(self._update_dirty_state)
 
     def _capture_form_state(self) -> dict:
         state = {
@@ -385,6 +402,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return state
 
     def _restore_form_state(self, state: dict) -> None:
+        self._loading_fields = True
         self.le_target.setText(state["target_dir"])
         for key, checked in state["schedule"].items():
             if key in self.schedule_controls:
@@ -397,6 +415,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lst_src.setCurrentRow(state["current_source_row"])
         if state["log_html"]:
             self.txt_log.setHtml(state["log_html"])
+        self._loading_fields = False
+        self._update_dirty_state()
 
     def _toggle_language(self) -> None:
         state = self._capture_form_state()
@@ -405,7 +425,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._build_ui()
         self._restore_form_state(state)
 
-    def _load_fields(self):
+    def _load_fields(self, *, mark_clean: bool = False):
+        self._loading_fields = True
         self.le_target.setText(self.cfg.target_dir)
         self.lst_src.clear()
         for rule in self.cfg.sources:
@@ -422,11 +443,52 @@ class MainWindow(QtWidgets.QMainWindow):
         self.spn_retention.setValue(self.cfg.retention_keep_successful_runs)
         self._update_last_success_label()
         self._update_backup_size()
+        self._loading_fields = False
+        if mark_clean:
+            self._mark_form_clean()
+        else:
+            self._update_dirty_state()
+
+    def _settings_state(self) -> dict:
+        return {
+            "target_dir": self.le_target.text().strip(),
+            "sources": [
+                {
+                    "source": rule.source,
+                    "excludes": list(rule.excludes),
+                }
+                for rule in self.cfg.sources
+            ],
+            "exclude_patterns": list(self.cfg.exclude_patterns),
+            "schedule": {key: cb.isChecked() for key, cb in self.schedule_controls.items()},
+            "wait_on_finish": self.chk_wait.isChecked(),
+            "show_console": self.chk_console.isChecked(),
+            "show_tray_icon": self.chk_tray.isChecked(),
+            "show_overlay": self.chk_overlay.isChecked(),
+            "retention": self.spn_retention.value(),
+        }
+
+    def _mark_form_clean(self) -> None:
+        self._saved_form_state = copy.deepcopy(self._settings_state())
+        self._update_dirty_state()
+
+    def _update_dirty_state(self) -> None:
+        if self._loading_fields or not hasattr(self, "btn_save"):
+            return
+        dirty = self._saved_form_state is not None and self._settings_state() != self._saved_form_state
+        if dirty:
+            self.btn_save.setStyleSheet(
+                f"{self._save_button_base_style} "
+                "QPushButton { background-color: #b66a00; color: white; font-weight: 700; }"
+            )
+        else:
+            self.btn_save.setStyleSheet(self._save_button_base_style)
 
     def _pick_target(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, _("Select target directory"))
         if directory:
             self.le_target.setText(directory)
+            self._update_dirty_state()
             self._update_backup_size()
 
     def _add_source(self):
@@ -472,6 +534,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for rule in self.cfg.sources:
                 rule.excludes = new_excls.get(rule.source, [])
             self._refresh_excludes()
+            self._update_dirty_state()
             self._update_backup_size()
 
     def _add_pattern(self) -> None:
@@ -486,6 +549,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if pattern.casefold() not in {p.casefold() for p in self.cfg.exclude_patterns}:
             self.cfg.exclude_patterns.append(pattern)
         self._refresh_patterns()
+        self._update_dirty_state()
         self._update_backup_size()
 
     def _edit_patterns(self) -> None:
@@ -494,6 +558,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.cfg.exclude_patterns = dialog.patterns()
         self._refresh_patterns()
+        self._update_dirty_state()
         self._update_backup_size()
 
     def _save(self):
@@ -517,6 +582,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     delete(key)
 
         self.settings_status_label.setText(_("Saved") if target_settings_error is None else _("Saved locally"))
+        self._mark_form_clean()
         if target_settings_error is not None:
             QtWidgets.QMessageBox.warning(
                 self,
@@ -541,7 +607,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, _("Error"), _("No settings found"))
             return
         self.cfg = loaded
-        self._load_fields()
+        self._load_fields(mark_clean=True)
         self.settings_status_label.setText(_("Loaded"))
 
     def _restore(self):

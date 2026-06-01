@@ -7,6 +7,7 @@ from src.i18n import _
 class PatternDialog(QtWidgets.QDialog):
     def __init__(self, patterns: list[str], parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
+        self._saved_patterns = dedupe_strings([p.strip() for p in patterns if p.strip()])
         self.setWindowTitle(_("Global exclude patterns"))
         self.resize(560, 460)
 
@@ -25,7 +26,7 @@ class PatternDialog(QtWidgets.QDialog):
             "Matching:\n"
             "- names without / match any file or folder name\n"
             "- patterns with / match source-relative paths\n"
-            "- examples: .venv, __pycache__, *.pyc"
+            "- examples: Thumbs.db, .venv, node_modules, *.tmp"
         ))
         for hint in (hint_left, hint_right):
             hint.setWordWrap(True)
@@ -35,7 +36,7 @@ class PatternDialog(QtWidgets.QDialog):
 
         self.editor = QtWidgets.QPlainTextEdit()
         self.editor.setPlainText("\n".join(patterns))
-        self.editor.setPlaceholderText(".venv\n__pycache__\nnode_modules\n*.pyc")
+        self.editor.setPlaceholderText("Thumbs.db\n.DS_Store\n.venv\nnode_modules\n*.tmp")
         self.editor.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
         self.editor.setStyleSheet(
             "QPlainTextEdit {"
@@ -46,8 +47,8 @@ class PatternDialog(QtWidgets.QDialog):
         layout.addWidget(self.editor, 1)
 
         actions = QtWidgets.QHBoxLayout()
-        btn_defaults = QtWidgets.QPushButton(_("Add dev defaults"))
-        btn_defaults.clicked.connect(self._add_dev_defaults)
+        btn_defaults = QtWidgets.QPushButton(_("Add typical defaults"))
+        btn_defaults.clicked.connect(self._add_typical_defaults)
         actions.addWidget(btn_defaults)
         actions.addStretch(1)
 
@@ -55,10 +56,14 @@ class PatternDialog(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
         )
+        self.btn_ok = buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+        self._ok_button_base_style = self.btn_ok.styleSheet()
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         layout.addLayout(actions)
+        self.editor.textChanged.connect(self._update_dirty_state)
+        self._update_dirty_state()
 
     def patterns(self) -> list[str]:
         return dedupe_strings([
@@ -67,7 +72,17 @@ class PatternDialog(QtWidgets.QDialog):
             if line.strip() and not line.strip().startswith("#")
         ])
 
-    def _add_dev_defaults(self) -> None:
+    def _add_typical_defaults(self) -> None:
         self.editor.setPlainText("\n".join(
             dedupe_strings([*self.patterns(), *DEFAULT_DEV_PATTERNS])
         ))
+
+    def _update_dirty_state(self) -> None:
+        dirty = self.patterns() != self._saved_patterns
+        if dirty:
+            self.btn_ok.setStyleSheet(
+                f"{self._ok_button_base_style} "
+                "QPushButton { background-color: #b66a00; color: white; font-weight: 700; }"
+            )
+        else:
+            self.btn_ok.setStyleSheet(self._ok_button_base_style)

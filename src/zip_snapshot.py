@@ -188,11 +188,6 @@ def _safe_name(value: str) -> str:
 
 def _publish_staged_archive(staged_archive_path: Path, archive_path: Path) -> None:
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.replace(staged_archive_path, archive_path)
-        return
-    except OSError:
-        pass
     tmp_archive_path = archive_path.with_name(f".{archive_path.name}.tmp")
     try:
         shutil.copy2(staged_archive_path, tmp_archive_path)

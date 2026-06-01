@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from src.config import Settings
-from src.exclusions import ExclusionMatcher
+from src.exclusions import DEFAULT_DEV_PATTERNS, ExclusionMatcher
 
 
 class ExclusionTests(unittest.TestCase):
@@ -35,3 +35,28 @@ class ExclusionTests(unittest.TestCase):
         self.assertTrue(ExclusionMatcher(self.root, [], ["src/**/*.py"]).skip(
             self.root / "src" / "pkg" / "app.py"
         ))
+
+    def test_typical_defaults_cover_os_editor_build_and_temp_junk(self) -> None:
+        matcher = ExclusionMatcher(self.root, [], DEFAULT_DEV_PATTERNS)
+
+        ignored = [
+            self.root / "Thumbs.db",
+            self.root / ".DS_Store",
+            self.root / ".idea" / "workspace.xml",
+            self.root / "frontend" / "node_modules" / "pkg" / "index.js",
+            self.root / "app" / "dist" / "bundle.js",
+            self.root / "scratch.tmp",
+        ]
+        for path in ignored:
+            with self.subTest(path=path):
+                self.assertTrue(matcher.skip(path))
+
+        keep = [
+            self.root / "game.log",
+            self.root / "config.db",
+            self.root / ".git" / "HEAD",
+            self.root / "bin" / "tool.exe",
+        ]
+        for path in keep:
+            with self.subTest(path=path):
+                self.assertFalse(matcher.skip(path))

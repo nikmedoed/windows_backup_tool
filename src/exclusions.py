@@ -5,17 +5,65 @@ from pathlib import Path
 from typing import Any, Optional
 
 DEFAULT_DEV_PATTERNS = [
+    # OS metadata and thumbnail caches
+    ".DS_Store",
+    "Thumbs.db",
+    "Desktop.ini",
+    "ehthumbs.db",
+    "$RECYCLE.BIN",
+    "System Volume Information",
+    ".TemporaryItems",
+    ".Trashes",
+
+    # Editor and IDE project/cache folders
+    ".idea",
+    ".vscode",
+    ".vs",
+    "*.swp",
+    "*.swo",
+    "*~",
+
+    # Python environments and caches
     ".venv",
     "venv",
+    "env",
     "__pycache__",
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    "node_modules",
-    "dist",
-    "build",
+    ".tox",
+    ".nox",
+    ".coverage",
+    "htmlcov",
     "*.pyc",
     "*.pyo",
+    "*.pyd",
+
+    # JavaScript and web tooling
+    "node_modules",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".vite",
+    ".turbo",
+    ".parcel-cache",
+
+    # Common build output and package caches
+    "dist",
+    "build",
+    "out",
+    "target",
+    "coverage",
+    ".cache",
+    ".gradle",
+    ".m2",
+    "obj",
+
+    # Temporary files
+    "*.tmp",
+    "*.temp",
+    "*.bak",
+    "*.old",
 ]
 
 
