@@ -11,16 +11,11 @@ from PySide6.QtWidgets import QSizePolicy
 
 from src.app_version import VERSION
 from src.config import Settings, PathRule
-from src.copier import run_backup
 from src.i18n import _, get_language, set_language
-from src.restore import apply_restore_plan
-from src.scheduler import exists, delete, schedule
+from src.scheduler import exists, existing_keys, delete, schedule
 from src.utils import human_readable
-from src.version_store import VersionStore
-from src.zip_snapshot import create_zip_snapshots
 from .ExcludeDialog import ExcludeDialog
 from .PatternDialog import PatternDialog
-from .RestoreDialog import RestoreDialog
 from .SizeWorker import SizeWorker
 
 
@@ -39,6 +34,7 @@ class MainWindow(QtWidgets.QMainWindow):
     backupFinished = QtCore.Signal(bool)
     restoreFinished = QtCore.Signal(bool)
     zipFinished = QtCore.Signal(bool)
+    scheduleStatusLoaded = QtCore.Signal(object, int, bool)
 
     def __init__(self, *, debug: bool = False, debug_path: Optional[str] = None):
         super().__init__()
@@ -48,6 +44,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._debug_path = debug_path
         self._saved_form_state: dict | None = None
         self._loading_fields = False
+        self._schedule_load_id = 0
+        self.scheduleStatusLoaded.connect(self._on_schedule_status_loaded)
         self._build_ui()
         self.progressChanged.connect(self._handle_progress)
         self.logAppended.connect(self._append_log)
@@ -435,7 +433,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._refresh_excludes()
         self._refresh_patterns()
         for key, cb in self.schedule_controls.items():
-            cb.setChecked(exists(key))
+            cb.setChecked(False)
+            cb.setEnabled(False)
         self.chk_wait.setChecked(self.cfg.wait_on_finish)
         self.chk_console.setChecked(self.cfg.show_console)
         self.chk_tray.setChecked(self.cfg.show_tray_icon)
@@ -444,10 +443,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_last_success_label()
         self._update_backup_size()
         self._loading_fields = False
+        self._start_schedule_status_load(mark_clean=mark_clean)
         if mark_clean:
             self._mark_form_clean()
         else:
             self._update_dirty_state()
+
+    def _start_schedule_status_load(self, *, mark_clean: bool) -> None:
+        self._schedule_load_id += 1
+        load_id = self._schedule_load_id
+
+        def _job() -> None:
+            self.scheduleStatusLoaded.emit(existing_keys(), load_id, mark_clean)
+
+        threading.Thread(target=_job, daemon=True).start()
+
+    def _on_schedule_status_loaded(self, scheduled_keys: set[str], load_id: int, mark_clean: bool) -> None:
+        if load_id != self._schedule_load_id:
+            return
+        self._loading_fields = True
+        for key, cb in self.schedule_controls.items():
+            cb.setChecked(key in scheduled_keys)
+            cb.setEnabled(True)
+        self._loading_fields = False
+        if mark_clean and self._saved_form_state is not None:
+            self._saved_form_state["schedule"] = {
+                key: cb.isChecked() for key, cb in self.schedule_controls.items()
+            }
+        self._update_dirty_state()
 
     def _settings_state(self) -> dict:
         return {
@@ -611,6 +634,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_status_label.setText(_("Loaded"))
 
     def _restore(self):
+        from src.version_store import VersionStore
+        from .RestoreDialog import RestoreDialog
+
         target = self.le_target.text().strip()
         if not target:
             QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
@@ -682,6 +708,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_zip.setEnabled(False)
 
         def _job():
+            from src.restore import apply_restore_plan
+
             worker_store = VersionStore(Path(target))
             try:
                 success = apply_restore_plan(
@@ -726,6 +754,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_restore.setEnabled(False)
         self.btn_zip.setEnabled(False)
         def _job():
+            from src.copier import run_backup
+
             success = run_backup(
                 cfg,
                 self.progressChanged.emit,
@@ -754,6 +784,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_zip.setEnabled(False)
 
         def _job():
+            from src.zip_snapshot import create_zip_snapshots
+
             success = False
             try:
                 result = create_zip_snapshots(
