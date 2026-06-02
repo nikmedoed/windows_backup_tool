@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import threading
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.config import Settings
 from src.i18n import _
@@ -109,6 +109,7 @@ class RestoreDialog(QtWidgets.QDialog):
             "QTreeWidget::indicator { width: 18px; height: 18px; } "
         )
         self.table.itemChanged.connect(self._on_item_changed)
+        self.table.itemDoubleClicked.connect(self._open_version_folder)
         layout.addWidget(self.table, 1)
 
         btn_row = QtWidgets.QHBoxLayout()
@@ -429,6 +430,15 @@ class RestoreDialog(QtWidgets.QDialog):
                 self._refresh_parent_check_state(item.parent())
         finally:
             self._syncing_checks = False
+
+    def _open_version_folder(self, item: QtWidgets.QTreeWidgetItem, _column: int) -> None:
+        action = self._item_actions.get(id(item))
+        if action is None or action.content_path is None:
+            return
+        folder = action.content_path.parent
+        if not folder.exists():
+            return
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(folder)))
 
     def _refresh_parent_check_state(self, parent: QtWidgets.QTreeWidgetItem) -> None:
         checked = 0
