@@ -413,6 +413,8 @@ class RestoreDialog(QtWidgets.QDialog):
             tooltip = str(action.target_path) if col == 3 else item.text(col)
             if action.conflict:
                 tooltip = _("Current file is newer than the selected version") + "\n" + tooltip
+            elif action.action == "delete":
+                tooltip = _("File is absent in the selected version") + "\n" + tooltip
             item.setToolTip(col, tooltip)
         return item
 
@@ -495,7 +497,11 @@ def _plain_action_label(action: RestoreAction) -> str:
 
 
 def _issue_label(action: RestoreAction) -> str:
-    return _("Conflict") if action.conflict else ""
+    if action.conflict:
+        return _("Conflict")
+    if action.action == "delete":
+        return _("Absent in selected version")
+    return ""
 
 
 def _current_size(action: RestoreAction) -> str:

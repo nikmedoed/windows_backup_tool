@@ -25,6 +25,7 @@ class Stats:
     scanned: int = 0
     copied: int = 0
     deleted: int = 0
+    metadata_updated: int = 0
     unchanged: int = 0
     errors: int = 0
     _lock: Lock = field(default_factory=Lock)
@@ -35,10 +36,11 @@ class Stats:
 
     def summary(self) -> str:
         return _("Scanned: {scanned} | Copied: {copied} | Deleted: {deleted} | "
-                 "Unchanged: {unchanged} | Errors: {errors}").format(
+                 "Metadata: {metadata} | Unchanged: {unchanged} | Errors: {errors}").format(
             scanned=self.scanned,
             copied=self.copied,
             deleted=self.deleted,
+            metadata=self.metadata_updated,
             unchanged=self.unchanged,
             errors=self.errors
         )
@@ -246,6 +248,7 @@ def run_backup(
             atexit.register(_pause_console)
         unchanged_items: list[tuple[Path, Path, Path, Path, Optional[str], bool]] = []
         index_update_items: list[tuple[Path, Path, Path, Path, Optional[str], bool]] = []
+        metadata_update_items: list[tuple[Path, Path, Path, Path, str]] = []
         tasks: list[tuple[Path, Path, Path, Path]] = []
         delete_tasks: list[tuple[FileRecord, Path]] = []
 
@@ -260,11 +263,25 @@ def run_backup(
             record = indexed_files.get(_path_key(src))
             is_same, content_hash = _same_indexed_file(src, dst, record, use_hash)
             if is_same:
-                stats.inc("unchanged")
                 force_version = _needs_successful_version(record, successful_run_ids)
                 item = (src, source_root, mirror_rel, dst, content_hash, force_version)
-                unchanged_items.append(item)
-                if record is None or record.state != "present" or record.current_hash is None or force_version:
+                metadata_update_needed = (
+                        record is not None
+                        and record.state == "present"
+                        and content_hash is not None
+                        and _metadata_changed(src, record)
+                )
+                if metadata_update_needed:
+                    metadata_update_items.append((src, source_root, mirror_rel, dst, content_hash))
+                else:
+                    stats.inc("unchanged")
+                    unchanged_items.append(item)
+                if not metadata_update_needed and (
+                        record is None
+                        or record.state != "present"
+                        or record.current_hash is None
+                        or force_version
+                ):
                     index_update_items.append(item)
             else:
                 tasks.append((src, source_root, mirror_rel, dst))
@@ -291,7 +308,7 @@ def run_backup(
                 continue
             delete_tasks.append((record, tgt_root / Path(record.mirror_rel)))
 
-        if not tasks and not delete_tasks and not index_update_items:
+        if not tasks and not delete_tasks and not index_update_items and not metadata_update_items:
             _log(_("✅ No changes detected. Backup not required."))
             _log(stats.summary())
             if progress_cb:
@@ -319,10 +336,22 @@ def run_backup(
                 _log(_("❗ Error updating version index for {src} ({exc})").format(
                     src=src, exc=exc), is_error=True)
         _log(_("▶ {tasks} files to copy, {deleted} files to delete, {unchanged} unchanged")
-             .format(tasks=len(tasks), deleted=len(delete_tasks), unchanged=stats.unchanged))
+                 .format(tasks=len(tasks), deleted=len(delete_tasks), unchanged=stats.unchanged))
 
         done = 0
-        total_work = len(tasks) + len(delete_tasks)
+        total_work = len(tasks) + len(delete_tasks) + len(metadata_update_items)
+        for src, source_root, mirror_rel, dst, content_hash in metadata_update_items:
+            try:
+                _record_metadata_update(store, run_id, src, source_root, mirror_rel, dst, content_hash)
+                stats.inc("metadata_updated")
+            except Exception as exc:
+                stats.inc("errors")
+                _log(_("❗ Error updating metadata for {src} ({exc})").format(
+                    src=src, exc=exc), is_error=True)
+            done += 1
+            if not use_tqdm:
+                _prog(done, total_work)
+
         max_workers = min(8, (os.cpu_count() or 4) * 2)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -409,6 +438,21 @@ def _copy_versioned(
     store.record_copied(src, source_root, mirror_rel, dst, run_id, archived_rel, content_hash=content_hash)
 
 
+def _record_metadata_update(
+        store: VersionStore,
+        run_id: int,
+        src: Path,
+        source_root: Path,
+        mirror_rel: Path,
+        dst: Path,
+        content_hash: str,
+) -> None:
+    source_path = str(src.expanduser().resolve())
+    archived_rel = store.prepare_archive_current(source_path, dst, run_id) if dst.exists() else None
+    shutil.copystat(src, dst, follow_symlinks=False)
+    store.record_copied(src, source_root, mirror_rel, dst, run_id, archived_rel, content_hash=content_hash)
+
+
 def _copy2_atomic(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     tmp = dst.parent / f".{dst.name}.backup_tmp_{os.getpid()}_{time.time_ns()}"
@@ -463,6 +507,14 @@ def _mtime_close(left: Optional[float], right: Optional[float]) -> bool:
     if left is None or right is None:
         return False
     return math.isclose(left, right, abs_tol=_MTIME_TOLERANCE_SECONDS)
+
+
+def _metadata_changed(src: Path, record: FileRecord) -> bool:
+    try:
+        src_stat = src.stat()
+    except OSError:
+        return False
+    return not _mtime_close(src_stat.st_mtime, record.current_mtime)
 
 
 def _needs_successful_version(record: Optional[FileRecord], successful_run_ids: set[int]) -> bool:

@@ -48,11 +48,11 @@ msgstr "Режим трея не сработал ({exc}). Возвращаем�
 #: src/copier.py:36
 #, python-brace-format
 msgid ""
-"Scanned: {scanned} | Copied: {copied} | Deleted: {deleted} | Unchanged: "
-"{unchanged} | Errors: {errors}"
+"Scanned: {scanned} | Copied: {copied} | Deleted: {deleted} | Metadata: "
+"{metadata} | Unchanged: {unchanged} | Errors: {errors}"
 msgstr ""
 "Просканировано: {scanned} | Скопировано: {copied} | Удалено: {deleted} | "
-"Без изменений: {unchanged} | Ошибок: {errors}"
+"Метаданные: {metadata} | Без изменений: {unchanged} | Ошибок: {errors}"
 
 #: src/copier.py:73
 msgid "Progress"
@@ -234,6 +234,11 @@ msgid "▶ {tasks} files to copy, {deleted} files to delete, {unchanged} unchang
 msgstr ""
 "▶ Копировать: {tasks} файлов, удалить: {deleted}, без изменений: "
 "{unchanged}"
+
+#: src/copier.py:348
+#, python-brace-format
+msgid "❗ Error updating metadata for {src} ({exc})"
+msgstr "❗ Ошибка обновления метаданных для {src} ({exc})"
 
 #: src/copier.py:331
 msgid "Copying…"
@@ -679,6 +684,10 @@ msgstr "Выберите папку экспорта"
 msgid "Current file is newer than the selected version"
 msgstr "Текущий файл новее выбранной версии"
 
+#: src/gui/RestoreDialog.py:415
+msgid "File is absent in the selected version"
+msgstr "Файл отсутствует в выбранной версии"
+
 #: src/gui/RestoreDialog.py:461
 msgid "No files in this selected version and scope"
 msgstr "В выбранной версии и области нет файлов"
@@ -720,6 +729,10 @@ msgstr "Экспорт"
 #: src/gui/RestoreDialog.py:486
 msgid "Conflict"
 msgstr "Конфликт"
+
+#: src/gui/RestoreDialog.py:489
+msgid "Absent in selected version"
+msgstr "Отсутствует в выбранной версии"
 
 #: src/gui/RestoreDialog.py:493
 msgid "Missing"
@@ -817,9 +830,6 @@ msgstr "Конфликтов: {count}"
 
 #~ msgid "Existing, modified {mtime}"
 #~ msgstr "Существует, изменён {mtime}"
-
-#~ msgid "Absent in selected version"
-#~ msgstr "Отсутствует в выбранной версии"
 
 #~ msgid "modified {mtime}"
 #~ msgstr "изменён {mtime}"

@@ -103,6 +103,40 @@ class VersionedBackupTests(unittest.TestCase):
 
         self.assertEqual(source_file.read_text(encoding="utf-8"), "version two with a different size")
 
+    def test_metadata_only_change_creates_accurate_restore_point(self) -> None:
+        source_file = self.source / "save.txt"
+        source_file.write_text("same content", encoding="utf-8")
+        old_mtime = 1_700_000_000
+        new_mtime = old_mtime + 7200
+        os.utime(source_file, (old_mtime, old_mtime))
+        self.run_backup()
+
+        os.utime(source_file, (new_mtime, new_mtime))
+        self.run_backup()
+
+        store = VersionStore(self.target)
+        try:
+            runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
+            self.assertEqual(len(runs), 2)
+
+            latest_plan = build_restore_plan_for_sources(
+                store,
+                runs[-1].id,
+                self.cfg.sources,
+                mode="original",
+                compare_contents=False,
+            )
+            self.assertEqual(latest_plan.actions, [])
+
+            old_plan = build_restore_plan(store, runs[0].id, source_file, mode="original")
+            self.assertEqual(old_plan.copy_count, 1)
+            self.assertTrue(apply_restore_plan(old_plan, store, log_cb=lambda _m: None))
+        finally:
+            store.close()
+
+        self.assertEqual(source_file.read_text(encoding="utf-8"), "same content")
+        self.assertAlmostEqual(source_file.stat().st_mtime, old_mtime, delta=2.0)
+
     def test_previous_successful_version_survives_crash_after_archive_before_indexing_new_run(self) -> None:
         source_file = self.source / "save.txt"
         source_file.write_text("version one", encoding="utf-8")
@@ -248,6 +282,29 @@ class VersionedBackupTests(unittest.TestCase):
             self.assertEqual(store.count_versions(), 1)
         finally:
             store.close()
+
+    def test_restore_preview_ignores_nested_backup_target_files(self) -> None:
+        nested_target = self.source / "backup"
+        self.cfg.target_dir = str(nested_target)
+        source_file = self.source / "save.txt"
+        source_file.write_text("version one", encoding="utf-8")
+
+        self.run_backup()
+
+        store = VersionStore(nested_target)
+        try:
+            run = store.list_successful_runs()[0]
+            plan = build_restore_plan_for_sources(
+                store,
+                run.id,
+                self.cfg.sources,
+                mode="original",
+                compare_contents=False,
+            )
+        finally:
+            store.close()
+
+        self.assertEqual(plan.actions, [])
 
     def test_same_size_content_change_is_backed_up_even_with_same_mtime(self) -> None:
         source_file = self.source / "save.txt"
@@ -525,6 +582,77 @@ class VersionedBackupTests(unittest.TestCase):
             store.close()
 
         self.assertEqual(source_file.read_text(encoding="utf-8"), "version one")
+
+    def test_file_absent_in_selected_version_is_delete_not_conflict(self) -> None:
+        existing_file = self.source / "existing.txt"
+        source_file = self.source / "save.txt"
+        existing_file.write_text("already backed up", encoding="utf-8")
+        self.run_backup()
+
+        source_file.write_text("created later", encoding="utf-8")
+        self.run_backup()
+
+        store = VersionStore(self.target)
+        try:
+            runs = sorted(store.list_successful_runs(), key=lambda r: r.id)
+            plan = build_restore_plan(store, runs[0].id, source_file, mode="original")
+        finally:
+            store.close()
+
+        self.assertEqual(plan.delete_count, 1)
+        self.assertEqual(plan.conflict_count, 0)
+        self.assertEqual(plan.actions[0].action, "delete")
+
+    def test_unbacked_current_file_is_shown_as_absent_in_selected_version(self) -> None:
+        existing_file = self.source / "existing.txt"
+        new_file = self.source / "new.txt"
+        existing_file.write_text("already backed up", encoding="utf-8")
+        self.run_backup()
+
+        new_file.write_text("not backed up yet", encoding="utf-8")
+
+        store = VersionStore(self.target)
+        try:
+            run = store.list_successful_runs()[0]
+            plan = build_restore_plan_for_sources(
+                store,
+                run.id,
+                self.cfg.sources,
+                mode="original",
+                compare_contents=False,
+            )
+        finally:
+            store.close()
+
+        self.assertEqual(plan.delete_count, 1)
+        self.assertEqual(plan.conflict_count, 0)
+        self.assertEqual(plan.actions[0].target_path, new_file)
+
+    def test_unbacked_excluded_current_file_is_ignored_in_restore_preview(self) -> None:
+        existing_file = self.source / "existing.txt"
+        ignored_file = self.source / "__pycache__" / "new.pyc"
+        existing_file.write_text("already backed up", encoding="utf-8")
+        self.run_backup()
+
+        ignored_file.parent.mkdir()
+        ignored_file.write_text("ignored", encoding="utf-8")
+        self.cfg.exclude_patterns = ["__pycache__", "*.pyc"]
+
+        store = VersionStore(self.target)
+        try:
+            run = store.list_successful_runs()[0]
+            plan = build_restore_plan_for_sources(
+                store,
+                run.id,
+                self.cfg.sources,
+                mode="original",
+                compare_contents=False,
+                exclude_patterns=self.cfg.exclude_patterns,
+            )
+        finally:
+            store.close()
+
+        self.assertEqual(plan.actions, [])
 
     def test_newly_excluded_file_is_ignored_without_removing_mirror(self) -> None:
         source_file = self.source / "save.txt"

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from src.config import PathRule
-from src.exclusions import is_excluded_by_rule
-from src.utils import same_file
+from src.exclusions import is_excluded_by_rule, nested_target_excludes
+from src.utils import iter_files, same_file
 from src.version_store import SnapshotItem, VersionStore, mirror_relative_for_source
 
 _MTIME_TOLERANCE = 2.0
@@ -134,7 +134,7 @@ def _build_restore_plan_from_items(
                     selected_size=None,
                     selected_mtime=None,
                     current_mtime=target_stat.st_mtime,
-                    conflict=True,
+                    conflict=False,
                     current_size=target_stat.st_size,
                 )
             )
@@ -173,6 +173,16 @@ def build_restore_plan_for_sources(
             export_root=export_root,
             compare_contents=compare_contents,
         )
+        if mode == "original":
+            plan.actions.extend(
+                _untracked_current_file_delete_actions(
+                    rule,
+                    scope,
+                    store.target_root,
+                    items,
+                    exclude_patterns or [],
+                )
+            )
         for action in plan.actions:
             key = (action.action, str(action.target_path).casefold())
             if key in seen:
@@ -203,6 +213,48 @@ def _filter_ignored_snapshot_items(
         item for item in items
         if not is_excluded_by_rule(Path(item.source_path), path_rule, root=root, exclude_patterns=exclude_patterns)
     ]
+
+
+def _untracked_current_file_delete_actions(
+        rule: object,
+        root: Path,
+        target_root: Path,
+        items: list[SnapshotItem],
+        exclude_patterns: list[str],
+) -> list[RestoreAction]:
+    path_rule = rule if isinstance(rule, PathRule) else PathRule(
+        source=str(getattr(rule, "source")),
+        excludes=list(getattr(rule, "excludes", [])),
+    )
+    excludes = nested_target_excludes(path_rule.excludes, root, target_root)
+    if excludes is not None:
+        path_rule = PathRule(source=path_rule.source, excludes=excludes)
+    known_paths = {str(Path(item.source_path).expanduser().resolve()).casefold() for item in items}
+    actions: list[RestoreAction] = []
+    for current in iter_files(path_rule, exclude_patterns=exclude_patterns):
+        try:
+            current = current.expanduser().resolve()
+            if str(current).casefold() in known_paths:
+                continue
+            if not current.is_relative_to(root):
+                continue
+            stat = current.stat()
+        except OSError:
+            continue
+        actions.append(
+            RestoreAction(
+                action="delete",
+                source_path=str(current),
+                target_path=current,
+                content_path=None,
+                selected_size=None,
+                selected_mtime=None,
+                current_mtime=stat.st_mtime,
+                conflict=False,
+                current_size=stat.st_size,
+            )
+        )
+    return actions
 
 
 def apply_restore_plan(
@@ -282,7 +334,7 @@ def _copy_action(
     target_stat = _target_stat(target)
     if skip_equal and target_stat is not None:
         if compare_contents:
-            if same_file(content, target, use_hash=True):
+            if same_file(content, target, use_hash=True) and _snapshot_matches_stat(item, target_stat):
                 return None
         elif _snapshot_matches_stat(item, target_stat):
             return None
@@ -371,6 +423,14 @@ def _snapshot_matches_stat(item: SnapshotItem, stat: os.stat_result) -> bool:
     return abs(stat.st_mtime - item.mtime) <= _MTIME_TOLERANCE
 
 
+def _action_matches_stat(action: RestoreAction, stat: os.stat_result) -> bool:
+    if action.selected_size is not None and stat.st_size != action.selected_size:
+        return False
+    if action.selected_mtime is None:
+        return False
+    return abs(stat.st_mtime - action.selected_mtime) <= _MTIME_TOLERANCE
+
+
 def _effective_actions(plan: RestorePlan) -> list[RestoreAction]:
     if plan.mode == "export":
         return plan.actions
@@ -379,7 +439,12 @@ def _effective_actions(plan: RestorePlan) -> list[RestoreAction]:
         if action.action in {"create", "replace"}:
             if action.content_path is None:
                 continue
-            if action.target_path.exists() and same_file(action.content_path, action.target_path, use_hash=True):
+            target_stat = _target_stat(action.target_path)
+            if (
+                    target_stat is not None
+                    and same_file(action.content_path, action.target_path, use_hash=True)
+                    and _action_matches_stat(action, target_stat)
+            ):
                 continue
             result.append(action)
         elif action.action == "delete" and action.target_path.exists():
