@@ -177,6 +177,7 @@ def build_restore_plan_for_sources(
             plan.actions.extend(
                 _untracked_current_file_delete_actions(
                     rule,
+                    scope_input,
                     scope,
                     store.target_root,
                     items,
@@ -217,6 +218,7 @@ def _filter_ignored_snapshot_items(
 
 def _untracked_current_file_delete_actions(
         rule: object,
+        root_input: Path,
         root: Path,
         target_root: Path,
         items: list[SnapshotItem],
@@ -233,19 +235,21 @@ def _untracked_current_file_delete_actions(
     actions: list[RestoreAction] = []
     for current in iter_files(path_rule, exclude_patterns=exclude_patterns):
         try:
-            current = current.expanduser().resolve()
-            if str(current).casefold() in known_paths:
+            resolved_current = current.expanduser().resolve()
+            if str(resolved_current).casefold() in known_paths:
                 continue
-            if not current.is_relative_to(root):
+            if not resolved_current.is_relative_to(root):
                 continue
-            stat = current.stat()
+            rel = resolved_current.relative_to(root)
+            target = root_input if str(rel) == "." else root_input / rel
+            stat = resolved_current.stat()
         except OSError:
             continue
         actions.append(
             RestoreAction(
                 action="delete",
-                source_path=str(current),
-                target_path=current,
+                source_path=str(target),
+                target_path=target,
                 content_path=None,
                 selected_size=None,
                 selected_mtime=None,
