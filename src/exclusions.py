@@ -1,6 +1,7 @@
 import ctypes
 import fnmatch
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
@@ -83,6 +84,116 @@ def load_exclude_patterns(raw: Any, field_name: str) -> list[str]:
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
         raise ValueError(f"{field_name} must be List[str]")
     return list(raw)
+
+
+@dataclass(frozen=True)
+class _GitignoreRule:
+    base: Path
+    pattern: str
+    negated: bool
+    directory_only: bool
+    has_slash: bool
+    anchored: bool
+
+
+def gitignore_excludes(root: Path, preexcluded_patterns: Optional[list[str]] = None) -> list[str]:
+    """Return existing paths ignored by all .gitignore files below *root*.
+
+    The result is a one-time, minimal snapshot suitable for ``PathRule.excludes``:
+    ignored directories are included once and are not traversed further.
+    """
+    root = root.expanduser().resolve()
+    if not root.is_dir():
+        return []
+
+    ignored: list[str] = []
+    preexcluded = ExclusionMatcher(root, [], preexcluded_patterns or [])
+
+    def visit(directory: Path, inherited: list[_GitignoreRule]) -> None:
+        try:
+            with os.scandir(directory) as scanner:
+                entries = list(scanner)
+        except (OSError, PermissionError):
+            return
+
+        gitignore_path = next(
+            (Path(entry.path) for entry in entries if entry.name.casefold() == ".gitignore"),
+            None,
+        )
+        local_rules = _read_gitignore(gitignore_path, root) if gitignore_path is not None else []
+        rules = [*inherited, *local_rules] if local_rules else inherited
+
+        for entry in entries:
+            path = Path(entry.path)
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+            except OSError:
+                continue
+            if is_dir and (entry.name.casefold() == ".git" or preexcluded.skip(path)):
+                continue
+            if _gitignore_ignored(path, is_dir, root, rules):
+                ignored.append(path.relative_to(root).as_posix())
+                continue
+            if is_dir and not is_reparse_or_symlink(path, entry):
+                visit(path, rules)
+
+    visit(root, [])
+    return sorted(ignored, key=str.casefold)
+
+
+def _read_gitignore(path: Path, root: Path) -> list[_GitignoreRule]:
+    try:
+        lines = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+    except OSError:
+        return []
+
+    rules: list[_GitignoreRule] = []
+    base = path.parent.relative_to(root)
+    for raw in lines:
+        line = raw.rstrip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(r"\#"):
+            line = line[1:]
+        negated = line.startswith("!") and not line.startswith(r"\!")
+        if negated:
+            line = line[1:]
+        elif line.startswith(r"\!"):
+            line = line[1:]
+        directory_only = line.endswith("/")
+        anchored = line.startswith("/")
+        line = line.rstrip("/").lstrip("/")
+        if not line:
+            continue
+        line = line.replace("\\ ", " ").replace("\\#", "#").replace("\\!", "!")
+        rules.append(_GitignoreRule(
+            base=base,
+            pattern=line,
+            negated=negated,
+            directory_only=directory_only,
+            has_slash="/" in line,
+            anchored=anchored,
+        ))
+    return rules
+
+
+def _gitignore_ignored(path: Path, is_dir: bool, root: Path, rules: list[_GitignoreRule]) -> bool:
+    root_rel = path.relative_to(root)
+    ignored = False
+    for rule in rules:
+        try:
+            rel = root_rel.relative_to(rule.base).as_posix()
+        except ValueError:
+            continue
+        if rule.directory_only and not is_dir:
+            continue
+        if rule.has_slash or rule.anchored:
+            matched = _match_path_pattern(rel, rule.pattern.casefold())
+        else:
+            matched = fnmatch.fnmatchcase(path.name.casefold(), rule.pattern.casefold())
+        if matched:
+            ignored = not rule.negated
+    return ignored
 
 
 def nested_target_excludes(excludes: list[str], source_root: Path, target_root: Path) -> Optional[list[str]]:

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QSizePolicy
 
 from src.app_version import VERSION
 from src.config import Settings, PathRule
+from src.exclusions import gitignore_excludes
 from src.i18n import _, get_language, set_language
 from src.scheduler import exists, existing_keys, delete, schedule
 from src.utils import human_readable
@@ -131,6 +132,12 @@ class MainWindow(QtWidgets.QMainWindow):
             if text == _("Exclusions"):
                 btn.setStyleSheet("background-color: #204686; color: white;")
             btn_src_layout.addWidget(btn)
+        self.chk_import_gitignore = QtWidgets.QCheckBox(_(".gitignore"))
+        self.chk_import_gitignore.setChecked(True)
+        self.chk_import_gitignore.setToolTip(_(
+            "Create exclusions from .gitignore files once when adding a source."
+        ))
+        btn_src_layout.addWidget(self.chk_import_gitignore)
         btn_src_layout.addStretch(1)
         src_layout.addLayout(btn_src_layout)
 
@@ -517,7 +524,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def _add_source(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, _("Add source directory"))
         if directory:
-            self.cfg.sources.append(PathRule(source=directory))
+            excludes = (
+                gitignore_excludes(Path(directory), self.cfg.exclude_patterns)
+                if self.chk_import_gitignore.isChecked()
+                else []
+            )
+            self.cfg.sources.append(PathRule(source=directory, excludes=excludes))
             self._load_fields()
 
     def _delete_source(self):

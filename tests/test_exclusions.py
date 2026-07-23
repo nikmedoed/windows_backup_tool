@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from src.config import Settings
-from src.exclusions import DEFAULT_DEV_PATTERNS, ExclusionMatcher
+from src.exclusions import DEFAULT_DEV_PATTERNS, ExclusionMatcher, gitignore_excludes
 
 
 class ExclusionTests(unittest.TestCase):
@@ -60,3 +60,33 @@ class ExclusionTests(unittest.TestCase):
         for path in keep:
             with self.subTest(path=path):
                 self.assertFalse(matcher.skip(path))
+
+    def test_gitignore_excludes_are_relative_and_minimal(self) -> None:
+        (self.root / ".gitignore").write_text("*.log\nbuild/\n", encoding="utf-8")
+        (self.root / "debug.log").write_text("ignored", encoding="utf-8")
+        (self.root / "keep.txt").write_text("kept", encoding="utf-8")
+        (self.root / "build").mkdir()
+        (self.root / "build" / "artifact.bin").write_bytes(b"x")
+
+        self.assertEqual(gitignore_excludes(self.root), ["build", "debug.log"])
+
+    def test_nested_gitignore_rules_are_relative_to_their_directory(self) -> None:
+        package = self.root / "package"
+        package.mkdir()
+        (package / ".gitignore").write_text("cache/\n*.tmp\n", encoding="utf-8")
+        (package / "cache").mkdir()
+        (package / "cache" / "item.bin").write_bytes(b"x")
+        (package / "scratch.tmp").write_text("ignored", encoding="utf-8")
+        (self.root / "scratch.tmp").write_text("kept", encoding="utf-8")
+
+        self.assertEqual(
+            gitignore_excludes(self.root),
+            ["package/cache", "package/scratch.tmp"],
+        )
+
+    def test_gitignore_negation_reincludes_a_path(self) -> None:
+        (self.root / ".gitignore").write_text("*.log\n!important.log\n", encoding="utf-8")
+        (self.root / "debug.log").write_text("ignored", encoding="utf-8")
+        (self.root / "important.log").write_text("kept", encoding="utf-8")
+
+        self.assertEqual(gitignore_excludes(self.root), ["debug.log"])
