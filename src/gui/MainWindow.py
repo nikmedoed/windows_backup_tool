@@ -74,6 +74,7 @@ class MainWindow(QtWidgets.QMainWindow):
         target_layout = QtWidgets.QHBoxLayout()
         target_layout.addWidget(QtWidgets.QLabel(_("Backup target:")))
         self.le_target = QtWidgets.QLineEdit()
+        self.le_target.editingFinished.connect(self._load_target_workspace)
         target_layout.addWidget(self.le_target, 1)
         btn_pick = QtWidgets.QPushButton("…")
         btn_pick.clicked.connect(self._pick_target)
@@ -518,8 +519,27 @@ class MainWindow(QtWidgets.QMainWindow):
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, _("Select target directory"))
         if directory:
             self.le_target.setText(directory)
-            self._update_dirty_state()
-            self._update_backup_size()
+            self._load_target_workspace()
+
+    def _load_target_workspace(self) -> None:
+        """Open an existing workspace or seed a new one from current settings."""
+        if self._loading_fields:
+            return
+        target = self.le_target.text().strip()
+        if not target:
+            return
+        self._apply_form_to_config()
+        try:
+            loaded, existed = Settings.open_target(target, self.cfg)
+            # Remember which portable workspace is active on this machine.
+            # Scheduler changes remain explicit and are still applied by Save.
+            loaded.save()
+        except (OSError, RuntimeError) as exc:
+            QtWidgets.QMessageBox.warning(self, _("Settings"), str(exc))
+            return
+        self.cfg = loaded
+        self._load_fields(mark_clean=True)
+        self.settings_status_label.setText(_("Loaded") if existed else _("Saved"))
 
     def _add_source(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(self, _("Add source directory"))

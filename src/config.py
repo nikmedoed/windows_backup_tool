@@ -74,14 +74,70 @@ class Settings:
     def load_from_target(cls, target_dir: str | Path) -> Optional["Settings"]:
         path = target_settings_file(target_dir)
         if not path.exists():
-            return None
+            return cls._infer_from_target_index(target_dir)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             settings = cls.from_payload(data)
-            settings.target_dir = str(Path(target_dir))
+            settings.target_dir = str(Path(target_dir).expanduser().resolve())
+            # Repair settings files that were accidentally saved without
+            # sources by older versions: the version index still knows them.
+            if not settings.sources:
+                inferred = cls._infer_from_target_index(target_dir)
+                if inferred is not None:
+                    settings.sources = inferred.sources
             return settings
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             raise RuntimeError(f"Failed to load target settings: {e}") from e
+
+    @classmethod
+    def open_target(
+            cls,
+            target_dir: str | Path,
+            current: "Settings",
+    ) -> tuple["Settings", bool]:
+        """
+        Open a portable backup workspace.
+
+        Existing workspace settings win. A new workspace receives a copy of the
+        current settings, with only its target path changed.
+        """
+        loaded = cls.load_from_target(target_dir)
+        if loaded is not None:
+            # Normalize and heal portable metadata recovered from an old index
+            # or an accidentally empty settings file.
+            loaded.save_to_target(target_dir)
+            return loaded, True
+
+        seeded = cls.from_payload(asdict(current))
+        seeded.target_dir = str(Path(target_dir).expanduser().resolve())
+        seeded.save_to_target()
+        return seeded, False
+
+    @classmethod
+    def _infer_from_target_index(cls, target_dir: str | Path) -> Optional["Settings"]:
+        """Recover portable settings for workspaces created before settings.json."""
+        target = Path(target_dir).expanduser().resolve()
+        index_path = target / ".backup_versions" / "index.sqlite3"
+        if not index_path.is_file():
+            return None
+
+        # Import lazily: version_store imports utilities which in turn import this
+        # module, so a module-level import would create a cycle.
+        from src.version_store import VersionStore
+
+        store = VersionStore(target)
+        try:
+            roots = store.list_source_roots()
+        except Exception as e:
+            raise RuntimeError(f"Failed to infer target settings: {e}") from e
+        finally:
+            store.close()
+        if not roots:
+            return None
+        return cls(
+            target_dir=str(target),
+            sources=[PathRule(source=root) for root in roots],
+        )
 
     @classmethod
     def from_payload(cls, data: dict[str, Any]) -> "Settings":

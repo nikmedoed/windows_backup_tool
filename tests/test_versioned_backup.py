@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
 
@@ -734,6 +735,96 @@ class VersionedBackupTests(unittest.TestCase):
         self.assertEqual(loaded.sources[0].source, str(self.source))
         self.assertEqual(loaded.sources[0].excludes, ["local.secret"])
         self.assertEqual(loaded.exclude_patterns, ["__pycache__", "*.pyc"])
+
+    def test_old_backup_without_settings_recovers_sources_from_index(self) -> None:
+        second_source = self.root / "second-source"
+        second_source.mkdir()
+        (self.source / "one.txt").write_text("one", encoding="utf-8")
+        (second_source / "two.txt").write_text("two", encoding="utf-8")
+        self.cfg.sources.append(PathRule(source=str(second_source)))
+        self.run_backup()
+        (self.target / ".backup_versions" / "settings.json").unlink()
+
+        loaded = Settings.load_from_target(self.target)
+
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+        self.assertEqual(loaded.target_dir, str(self.target.resolve()))
+        self.assertCountEqual(
+            [rule.source for rule in loaded.sources],
+            [str(self.source.resolve()), str(second_source.resolve())],
+        )
+
+    def test_empty_target_settings_recovers_sources_from_index(self) -> None:
+        (self.source / "one.txt").write_text("one", encoding="utf-8")
+        self.run_backup()
+        empty = Settings(
+            target_dir=str(self.target),
+            sources=[],
+            retention_keep_successful_runs=17,
+        )
+        empty.save_to_target()
+
+        loaded = Settings.load_from_target(self.target)
+
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+        self.assertEqual([rule.source for rule in loaded.sources], [str(self.source.resolve())])
+        self.assertEqual(loaded.retention_keep_successful_runs, 17)
+
+    def test_new_target_is_seeded_without_clearing_current_settings(self) -> None:
+        new_target = self.root / "new-target"
+        self.cfg.sources[0].excludes = ["private"]
+        self.cfg.exclude_patterns = ["*.tmp"]
+
+        opened, existed = Settings.open_target(new_target, self.cfg)
+
+        self.assertFalse(existed)
+        self.assertEqual(opened.target_dir, str(new_target.resolve()))
+        self.assertEqual(opened.sources, self.cfg.sources)
+        self.assertEqual(opened.exclude_patterns, ["*.tmp"])
+        self.assertEqual(self.cfg.target_dir, str(self.target))
+        persisted = Settings.load_from_target(new_target)
+        self.assertIsNotNone(persisted)
+        assert persisted is not None
+        self.assertEqual(persisted.sources, self.cfg.sources)
+
+    def test_existing_target_settings_replace_current_settings(self) -> None:
+        existing_target = self.root / "existing-target"
+        existing = Settings(
+            target_dir=str(existing_target),
+            sources=[PathRule(source=str(self.root / "existing-source"))],
+            exclude_patterns=["existing-only"],
+        )
+        existing.save_to_target()
+
+        opened, existed = Settings.open_target(existing_target, self.cfg)
+
+        self.assertTrue(existed)
+        self.assertEqual(opened.sources, existing.sources)
+        self.assertEqual(opened.exclude_patterns, ["existing-only"])
+        self.assertEqual(self.cfg.target_dir, str(self.target))
+
+    def test_open_target_write_failure_does_not_mutate_current_settings(self) -> None:
+        original_payload = asdict(self.cfg)
+        blocked_target = self.root / "not-a-directory"
+        blocked_target.write_text("file", encoding="utf-8")
+
+        with self.assertRaises(OSError):
+            Settings.open_target(blocked_target, self.cfg)
+
+        self.assertEqual(asdict(self.cfg), original_payload)
+
+    def test_corrupt_target_settings_are_not_overwritten(self) -> None:
+        corrupt_target = self.root / "corrupt-target"
+        settings_file = corrupt_target / ".backup_versions" / "settings.json"
+        settings_file.parent.mkdir(parents=True)
+        settings_file.write_text("{broken", encoding="utf-8")
+
+        with self.assertRaises(RuntimeError):
+            Settings.open_target(corrupt_target, self.cfg)
+
+        self.assertEqual(settings_file.read_text(encoding="utf-8"), "{broken")
 
     def test_configured_source_export_skips_ignored_index_entries(self) -> None:
         keep = self.source / "keep.txt"

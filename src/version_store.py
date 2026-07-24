@@ -171,6 +171,20 @@ class VersionStore:
             for r in rows
         ]
 
+    def list_source_roots(self) -> list[str]:
+        """Return every source root recorded in this backup workspace."""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT source_root, MIN(id) AS first_file_id
+                FROM files
+                WHERE source_root <> ''
+                GROUP BY source_root
+                ORDER BY first_file_id
+                """
+            ).fetchall()
+        return [str(row["source_root"]) for row in rows]
+
     def get_run(self, run_id: int) -> Optional[RunInfo]:
         with self._lock:
             row = self._conn.execute(
