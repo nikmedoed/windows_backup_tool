@@ -967,6 +967,34 @@ class VersionedBackupTests(unittest.TestCase):
         self.assertEqual(plan.actions[0].action, "replace")
         self.assertEqual(plan.actions[0].target_path, two)
 
+    def test_restore_recreates_completely_missing_configured_source_root(self) -> None:
+        nested_file = self.source / "not-created-yet" / "save.dat"
+        nested_file.parent.mkdir()
+        nested_file.write_text("portable save", encoding="utf-8")
+        self.run_backup()
+        loaded = Settings.load_from_target(self.target)
+        self.assertIsNotNone(loaded)
+        assert loaded is not None
+        shutil.rmtree(self.source)
+
+        store = VersionStore(self.target)
+        try:
+            run = store.list_successful_runs()[0]
+            plan = build_restore_plan_for_sources(
+                store,
+                run.id,
+                loaded.sources,
+                mode="original",
+                exclude_patterns=loaded.exclude_patterns,
+            )
+            self.assertEqual(plan.create_count, 1)
+            self.assertEqual(plan.actions[0].target_path, nested_file)
+            self.assertTrue(apply_restore_plan(plan, store, log_cb=lambda _message: None))
+        finally:
+            store.close()
+
+        self.assertEqual(nested_file.read_text(encoding="utf-8"), "portable save")
+
     def test_retention_materializes_next_snapshot_before_deleting_oldest_run(self) -> None:
         self.cfg.retention_keep_successful_runs = 2
         one = self.source / "one.txt"

@@ -41,7 +41,6 @@ def main() -> None:
     if args.backup:
         from src.updater import start_background_updater
         from src.config import Settings
-        from src.copier import run_backup
 
         start_background_updater(VERSION)
         cfg = Settings.load()
@@ -54,6 +53,17 @@ def main() -> None:
         silent_log = (lambda _m: None) if not cfg.show_console else None
         silent_progress = (lambda _done, _total: None) if not cfg.show_console else None
         success = False
+        if cfg.scheduled_zip_snapshots:
+            from src.zip_snapshot import create_zip_snapshots
+
+            result = create_zip_snapshots(
+                cfg,
+                progress_cb=silent_progress,
+                log_cb=silent_log,
+            )
+            raise SystemExit(0 if result.archives and not result.errors else 1)
+
+        from src.copier import run_backup
         if cfg.show_tray_icon:
             try:
                 from src.tray import run_with_tray

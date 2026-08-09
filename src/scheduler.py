@@ -1,7 +1,5 @@
 import subprocess
 import sys
-import csv
-import io
 from pathlib import Path
 
 TASK_FOLDER = r"\BackupTool"
@@ -50,28 +48,13 @@ def exists(key: str) -> bool:
 
 def existing_keys() -> set[str]:
     """
-    Return scheduled BackupTool task keys with a single schtasks query.
+    Return the actual scheduled BackupTool task keys from Windows.
+
+    Query every known task directly. A wildcard folder query is not reliable
+    across Windows/schtasks versions and can make the UI report no tasks even
+    though they exist.
     """
-    result = subprocess.run(
-        ["schtasks", "/Query", "/TN", f"{TASK_FOLDER}\\*", "/FO", "CSV", "/NH"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        creationflags=_NO_WINDOW_FLAGS,
-    )
-    if result.returncode != 0:
-        return set()
-
-    names = set()
-    for row in csv.reader(io.StringIO(result.stdout)):
-        if row:
-            names.add(row[0].strip().casefold())
-
-    return {
-        key
-        for key in TASKS
-        if _full_name(key).casefold() in names
-    }
+    return {key for key in TASKS if exists(key)}
 
 
 def delete(key: str) -> None:

@@ -486,6 +486,15 @@ msgstr "Трей-значок при копировании"
 msgid "Show floating bubble when finished"
 msgstr "Уведомление после завершения"
 
+msgid "Scheduled runs create ZIP snapshots"
+msgstr "Автозапуск создаёт ZIP-снимки"
+
+msgid "Not saved"
+msgstr "Не сохранено"
+
+msgid "Settings were not saved because the backup target could not be updated: {exc}"
+msgstr "Настройки не сохранены: не удалось обновить целевую папку резервной копии: {exc}"
+
 #: src/gui/MainWindow.py:231
 msgid "Version history"
 msgstr "История версий"

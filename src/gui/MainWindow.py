@@ -219,11 +219,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chk_console = QtWidgets.QCheckBox()
         self.chk_tray = QtWidgets.QCheckBox()
         self.chk_overlay = QtWidgets.QCheckBox()
+        self.chk_scheduled_zip = QtWidgets.QCheckBox()
         for row, (cb, text) in enumerate([
             (self.chk_wait, _("Wait before closing console window")),
             (self.chk_console, _("Show console progress")),
             (self.chk_tray, _("Show tray icon while backing up")),
             (self.chk_overlay, _("Show floating bubble when finished")),
+            (self.chk_scheduled_zip, _("Scheduled runs create ZIP snapshots")),
         ]):
             label = QtWidgets.QLabel(text)
             label.setWordWrap(True)
@@ -390,6 +392,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.chk_console,
                 self.chk_tray,
                 self.chk_overlay,
+                self.chk_scheduled_zip,
         ):
             cb.toggled.connect(self._update_dirty_state)
 
@@ -401,6 +404,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "show_console": self.chk_console.isChecked(),
             "show_tray_icon": self.chk_tray.isChecked(),
             "show_overlay": self.chk_overlay.isChecked(),
+            "scheduled_zip_snapshots": self.chk_scheduled_zip.isChecked(),
             "retention": self.spn_retention.value(),
             "current_source_row": self.lst_src.currentRow(),
             "log_html": self.txt_log.toHtml(),
@@ -417,6 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chk_console.setChecked(state["show_console"])
         self.chk_tray.setChecked(state["show_tray_icon"])
         self.chk_overlay.setChecked(state["show_overlay"])
+        self.chk_scheduled_zip.setChecked(state["scheduled_zip_snapshots"])
         self.spn_retention.setValue(state["retention"])
         self.lst_src.setCurrentRow(state["current_source_row"])
         if state["log_html"]:
@@ -447,6 +452,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chk_console.setChecked(self.cfg.show_console)
         self.chk_tray.setChecked(self.cfg.show_tray_icon)
         self.chk_overlay.setChecked(self.cfg.show_overlay)
+        self.chk_scheduled_zip.setChecked(self.cfg.scheduled_zip_snapshots)
         self.spn_retention.setValue(self.cfg.retention_keep_successful_runs)
         self._update_last_success_label()
         self._update_backup_size()
@@ -496,6 +502,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "show_console": self.chk_console.isChecked(),
             "show_tray_icon": self.chk_tray.isChecked(),
             "show_overlay": self.chk_overlay.isChecked(),
+            "scheduled_zip_snapshots": self.chk_scheduled_zip.isChecked(),
             "retention": self.spn_retention.value(),
         }
 
@@ -622,10 +629,12 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, _("Error"), _("Please specify the target directory"))
             return
         self._apply_form_to_config()
-        self.cfg.save()
         target_settings_error = None
         try:
             self.cfg.save_to_target(target)
+            # Only advance the local active-workspace copy after its canonical
+            # target settings have been committed successfully.
+            self.cfg.save()
         except Exception as exc:
             target_settings_error = exc
         for key, cb in self.schedule_controls.items():
@@ -636,13 +645,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 if exists(key):
                     delete(key)
 
-        self.settings_status_label.setText(_("Saved") if target_settings_error is None else _("Saved locally"))
-        self._mark_form_clean()
+        self.settings_status_label.setText(_("Saved") if target_settings_error is None else _("Not saved"))
+        if target_settings_error is None:
+            self._mark_form_clean()
+        # Re-read Task Scheduler after applying changes; the checkboxes display
+        # machine state, never a remembered preference from a config file.
+        self._start_schedule_status_load(mark_clean=True)
         if target_settings_error is not None:
             QtWidgets.QMessageBox.warning(
                 self,
                 _("Settings"),
-                _("Saved local settings, but could not write settings to backup target: {exc}").format(
+                _("Settings were not saved because the backup target could not be updated: {exc}").format(
                     exc=target_settings_error,
                 ),
             )
@@ -654,6 +667,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg.show_console = self.chk_console.isChecked()
         self.cfg.show_tray_icon = self.chk_tray.isChecked()
         self.cfg.show_overlay = self.chk_overlay.isChecked()
+        self.cfg.scheduled_zip_snapshots = self.chk_scheduled_zip.isChecked()
         self.cfg.retention_keep_successful_runs = self.spn_retention.value()
 
     def _reload_saved_settings(self):

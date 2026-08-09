@@ -30,6 +30,7 @@ class Settings:
     show_console: bool = True
     show_tray_icon: bool = True
     show_overlay: bool = True
+    scheduled_zip_snapshots: bool = False
     retention_keep_successful_runs: int = 0
     exclude_patterns: List[str] = field(default_factory=list)
     last_success: Optional[str] = None
@@ -47,6 +48,8 @@ class Settings:
             raise ValueError("Settings.show_tray_icon must be bool")
         if not isinstance(self.show_overlay, bool):
             raise ValueError("Settings.show_overlay must be bool")
+        if not isinstance(self.scheduled_zip_snapshots, bool):
+            raise ValueError("Settings.scheduled_zip_snapshots must be bool")
         if (
                 not isinstance(self.retention_keep_successful_runs, int)
                 or self.retention_keep_successful_runs < 0
@@ -66,9 +69,18 @@ class Settings:
             return None
         try:
             raw = CONFIG_FILE.read_text(encoding="utf-8")
-            return cls.from_payload(json.loads(raw))
+            local = cls.from_payload(json.loads(raw))
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             raise RuntimeError(f"Failed to load config: {e}") from e
+
+        # The local file identifies the active workspace. Its portable settings
+        # are authoritative whenever the target is available (including when a
+        # cloud client changed them on another machine).
+        if local.target_dir:
+            target_path = target_settings_file(local.target_dir)
+            if target_path.is_file():
+                return cls.load_from_target(local.target_dir)
+        return local
 
     @classmethod
     def load_from_target(cls, target_dir: str | Path) -> Optional["Settings"]:
@@ -151,6 +163,7 @@ class Settings:
             show_console=data.get("show_console", True),
             show_tray_icon=data.get("show_tray_icon", True),
             show_overlay=data.get("show_overlay", True),
+            scheduled_zip_snapshots=data.get("scheduled_zip_snapshots", False),
             retention_keep_successful_runs=data.get("retention_keep_successful_runs", 0),
             exclude_patterns=dedupe_strings([
                 *load_exclude_patterns(data.get("exclude_patterns", []), "Settings.exclude_patterns"),
@@ -161,8 +174,9 @@ class Settings:
 
     def save(self) -> None:
         CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with CONFIG_FILE.open("w", encoding="utf-8") as f:
-            json.dump(asdict(self), f, indent=2, ensure_ascii=False)
+        tmp = CONFIG_FILE.with_name(f".{CONFIG_FILE.name}.tmp")
+        tmp.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(CONFIG_FILE)
 
     def save_to_target(self, target_dir: str | Path | None = None) -> Path:
         path = target_settings_file(target_dir or self.target_dir)

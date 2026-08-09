@@ -73,7 +73,11 @@ It performs incremental copies, supports exclusions, scheduling, and offers a si
    - Configure **Exclusions** via the tree view.
    - Select **Schedule** triggers and click **Save**.
 
-Settings are saved to `%AppData%\BackupTool\config.json`.
+The local `%AppData%\BackupTool\config.json` remembers the active backup
+target. When that target is available, its
+`.backup_versions\settings.json` is the authoritative settings copy. This lets
+another machine pick up synchronized source and exclusion changes while each
+machine's Task Scheduler state remains local and is read directly from Windows.
 
 ## Versioned Backups
 
@@ -124,7 +128,11 @@ creates a dated folder under `BackupTarget\zip_snapshots\YYYYMMDD_HHMMSS`
 and writes one `.zip` archive for each configured source. Archive contents use
 paths relative to each source folder and apply the same selected exclusions and
 global glob patterns. This is intended as a coarse fallback snapshot when the
-plain mirror is being synchronized by another tool such as OneDrive.
+plain mirror is being synchronized by another tool such as OneDrive. Enable
+**Scheduled runs create ZIP snapshots** to make `--backup` tasks create ZIP
+snapshots instead of the normal plain mirror/version-history backup. ZIPs are
+staged outside the target and published atomically, so a cloud client does not
+see a half-written archive.
 
 When restoring to a separate folder, the tool does not patch or touch original
 files. It exports the full selected version for the configured sources using the same
