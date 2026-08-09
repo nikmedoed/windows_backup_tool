@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, List, Any
@@ -173,17 +174,11 @@ class Settings:
         )
 
     def save(self) -> None:
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = CONFIG_FILE.with_name(f".{CONFIG_FILE.name}.tmp")
-        tmp.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(CONFIG_FILE)
+        _write_json_atomic(CONFIG_FILE, asdict(self))
 
     def save_to_target(self, target_dir: str | Path | None = None) -> Path:
         path = target_settings_file(target_dir or self.target_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f".{path.name}.tmp")
-        tmp.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(path)
+        _write_json_atomic(path, asdict(self))
         return path
 
     @staticmethod
@@ -201,8 +196,7 @@ class Settings:
         if payload is None:
             return
         payload.update({k: v for k, v in updates.items() if v is not None})
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        _write_json_atomic(CONFIG_FILE, payload)
 
 
 def _load_sources(raw_sources: Any) -> tuple[list[PathRule], list[str]]:
@@ -225,6 +219,20 @@ def _load_sources(raw_sources: Any) -> tuple[list[PathRule], list[str]]:
 
 def target_settings_file(target_dir: str | Path) -> Path:
     return Path(target_dir).expanduser().resolve() / TARGET_SETTINGS_REL
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Write JSON through a unique sibling file, then atomically replace it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, raw_tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(raw_tmp)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2, ensure_ascii=False)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == "__main__":

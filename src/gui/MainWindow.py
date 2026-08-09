@@ -13,7 +13,7 @@ from src.app_version import VERSION
 from src.config import Settings, PathRule
 from src.exclusions import gitignore_excludes
 from src.i18n import _, get_language, set_language
-from src.scheduler import exists, existing_keys, delete, schedule
+from src.scheduler import schedule_status, delete, schedule
 from src.utils import human_readable
 from .ExcludeDialog import ExcludeDialog
 from .PatternDialog import PatternDialog
@@ -25,6 +25,43 @@ class _TightItemDelegate(QtWidgets.QStyledItemDelegate):
     def sizeHint(self, option, index):
         fm = option.fontMetrics
         return QtCore.QSize(option.rect.width(), fm.height() + 2)
+
+
+class _CompactChoiceButton(QtWidgets.QPushButton):
+    """A tiny text-only choice control without platform-reserved arrow space."""
+    currentIndexChanged = QtCore.Signal(int)
+
+    def __init__(self, choices: list[tuple[str, str]], parent=None):
+        super().__init__(parent)
+        self._choices = choices
+        self._index = 0
+        self.setText(choices[0][0])
+        self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.clicked.connect(self._show_choices)
+
+    def _show_choices(self) -> None:
+        menu = QtWidgets.QMenu(self)
+        for index, (label, _value) in enumerate(self._choices):
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(index == self._index)
+            action.setData(index)
+        selected = menu.exec(self.mapToGlobal(QtCore.QPoint(0, self.height())))
+        if selected is not None:
+            self.setCurrentIndex(int(selected.data()))
+
+    def currentData(self) -> str:
+        return self._choices[self._index][1]
+
+    def findData(self, value: str) -> int:
+        return next((i for i, choice in enumerate(self._choices) if choice[1] == value), -1)
+
+    def setCurrentIndex(self, index: int) -> None:
+        if not 0 <= index < len(self._choices) or index == self._index:
+            return
+        self._index = index
+        self.setText(self._choices[index][0])
+        self.currentIndexChanged.emit(index)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -46,6 +83,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._saved_form_state: dict | None = None
         self._loading_fields = False
         self._schedule_load_id = 0
+        self._system_schedule_times: dict[str, dict[str, str]] = {}
         self.scheduleStatusLoaded.connect(self._on_schedule_status_loaded)
         self._build_ui()
         self.progressChanged.connect(self._handle_progress)
@@ -188,8 +226,22 @@ class MainWindow(QtWidgets.QMainWindow):
         schedule_layout = QtWidgets.QVBoxLayout(schedule_group)
         schedule_layout.setContentsMargins(6, 2, 6, 6)
         schedule_layout.setSpacing(0)
-        self.cb_day = QtWidgets.QCheckBox(_("Daily at 03:00"))
-        self.cb_week = QtWidgets.QCheckBox(_("Weekly (Mon at 03:00)"))
+        self.cb_day = QtWidgets.QCheckBox(_("Daily"))
+        self.cb_week = QtWidgets.QCheckBox(_("Weekly"))
+        self.time_day = QtWidgets.QTimeEdit(QtCore.QTime(3, 0))
+        self.time_week = QtWidgets.QTimeEdit(QtCore.QTime(3, 0))
+        for time_edit in (self.time_day, self.time_week):
+            time_edit.setDisplayFormat("HH:mm")
+            time_edit.setButtonSymbols(QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
+            time_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            time_edit.setFixedWidth(48)
+        self.weekday = _CompactChoiceButton([
+                (_("Mo"), "MON"), (_("Tu"), "TUE"), (_("We"), "WED"),
+                (_("Th"), "THU"), (_("Fr"), "FRI"), (_("Sa"), "SAT"), (_("Su"), "SUN"),
+        ])
+        self.weekday.setFixedWidth(34)
+        self.weekday.setToolTip(_("Day of week"))
+        self.weekday.setStyleSheet("QPushButton { padding: 0px 3px; }")
         self.cb_logon = QtWidgets.QCheckBox(_("On logon"))
         self.cb_idle = QtWidgets.QCheckBox(_("On idle (20 min)"))
         self.cb_unlock = QtWidgets.QCheckBox(_("On unlock"))
@@ -199,6 +251,17 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         for cb in (self.cb_day, self.cb_week, self.cb_logon, self.cb_idle, self.cb_unlock):
             cb.setStyleSheet(_cb_style)
+        for cb, time_edit in ((self.cb_day, self.time_day), (self.cb_week, self.time_week)):
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
+            row.addWidget(cb)
+            row.addStretch(1)
+            if cb is self.cb_week:
+                row.addWidget(self.weekday)
+            row.addWidget(time_edit)
+            schedule_layout.addLayout(row)
+        for cb in (self.cb_logon, self.cb_idle, self.cb_unlock):
             schedule_layout.addWidget(cb)
         self.schedule_controls = {
             "daily": self.cb_day,
@@ -395,11 +458,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.chk_scheduled_zip,
         ):
             cb.toggled.connect(self._update_dirty_state)
+        self.time_day.timeChanged.connect(self._update_dirty_state)
+        self.time_week.timeChanged.connect(self._update_dirty_state)
+        self.weekday.currentIndexChanged.connect(self._update_dirty_state)
 
     def _capture_form_state(self) -> dict:
         state = {
             "target_dir": self.le_target.text(),
             "schedule": {key: cb.isChecked() for key, cb in self.schedule_controls.items()},
+            "schedule_times": self._schedule_times_from_form(),
+            "weekly_day": self.weekday.currentData(),
             "wait_on_finish": self.chk_wait.isChecked(),
             "show_console": self.chk_console.isChecked(),
             "show_tray_icon": self.chk_tray.isChecked(),
@@ -417,6 +485,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for key, checked in state["schedule"].items():
             if key in self.schedule_controls:
                 self.schedule_controls[key].setChecked(checked)
+        self._set_schedule_times(state["schedule_times"])
+        self._set_weekday(state["weekly_day"])
         self.chk_wait.setChecked(state["wait_on_finish"])
         self.chk_console.setChecked(state["show_console"])
         self.chk_tray.setChecked(state["show_tray_icon"])
@@ -448,6 +518,11 @@ class MainWindow(QtWidgets.QMainWindow):
         for key, cb in self.schedule_controls.items():
             cb.setChecked(False)
             cb.setEnabled(False)
+        self.time_day.setEnabled(False)
+        self.time_week.setEnabled(False)
+        self.weekday.setEnabled(False)
+        self._set_schedule_times({"daily": "03:00", "weekly": "03:00"})
+        self._set_weekday("MON")
         self.chk_wait.setChecked(self.cfg.wait_on_finish)
         self.chk_console.setChecked(self.cfg.show_console)
         self.chk_tray.setChecked(self.cfg.show_tray_icon)
@@ -468,22 +543,33 @@ class MainWindow(QtWidgets.QMainWindow):
         load_id = self._schedule_load_id
 
         def _job() -> None:
-            self.scheduleStatusLoaded.emit(existing_keys(), load_id, mark_clean)
+            self.scheduleStatusLoaded.emit(schedule_status(), load_id, mark_clean)
 
         threading.Thread(target=_job, daemon=True).start()
 
-    def _on_schedule_status_loaded(self, scheduled_keys: set[str], load_id: int, mark_clean: bool) -> None:
+    def _on_schedule_status_loaded(self, status: dict[str, dict[str, str]], load_id: int, mark_clean: bool) -> None:
         if load_id != self._schedule_load_id:
             return
         self._loading_fields = True
+        self._system_schedule_times = dict(status)
         for key, cb in self.schedule_controls.items():
-            cb.setChecked(key in scheduled_keys)
+            cb.setChecked(key in status)
             cb.setEnabled(True)
+        self._set_schedule_times({
+            "daily": status.get("daily", {}).get("time", "03:00"),
+            "weekly": status.get("weekly", {}).get("time", "03:00"),
+        })
+        self._set_weekday(status.get("weekly", {}).get("weekday", "MON"))
+        self.time_day.setEnabled(True)
+        self.time_week.setEnabled(True)
+        self.weekday.setEnabled(True)
         self._loading_fields = False
         if mark_clean and self._saved_form_state is not None:
             self._saved_form_state["schedule"] = {
                 key: cb.isChecked() for key, cb in self.schedule_controls.items()
             }
+            self._saved_form_state["schedule_times"] = self._schedule_times_from_form()
+            self._saved_form_state["weekly_day"] = self.weekday.currentData()
         self._update_dirty_state()
 
     def _settings_state(self) -> dict:
@@ -498,6 +584,8 @@ class MainWindow(QtWidgets.QMainWindow):
             ],
             "exclude_patterns": list(self.cfg.exclude_patterns),
             "schedule": {key: cb.isChecked() for key, cb in self.schedule_controls.items()},
+            "schedule_times": self._schedule_times_from_form(),
+            "weekly_day": self.weekday.currentData(),
             "wait_on_finish": self.chk_wait.isChecked(),
             "show_console": self.chk_console.isChecked(),
             "show_tray_icon": self.chk_tray.isChecked(),
@@ -637,13 +725,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cfg.save()
         except Exception as exc:
             target_settings_error = exc
-        for key, cb in self.schedule_controls.items():
-            if cb.isChecked():
-                if not exists(key):
-                    schedule(key)
-            else:
-                if exists(key):
+        schedule_error = None
+        try:
+            schedule_times = self._schedule_times_from_form()
+            for key, cb in self.schedule_controls.items():
+                if cb.isChecked():
+                    requested_time = schedule_times.get(key)
+                    requested = {"time": requested_time} if requested_time else {}
+                    if key == "weekly":
+                        requested["weekday"] = self.weekday.currentData()
+                    if self._system_schedule_times.get(key) != requested:
+                        schedule(key, start_time=requested_time, weekday=requested.get("weekday"))
+                elif key in self._system_schedule_times:
                     delete(key)
+        except Exception as exc:
+            schedule_error = exc
 
         self.settings_status_label.setText(_("Saved") if target_settings_error is None else _("Not saved"))
         if target_settings_error is None:
@@ -659,7 +755,28 @@ class MainWindow(QtWidgets.QMainWindow):
                     exc=target_settings_error,
                 ),
             )
+        if schedule_error is not None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                _("Schedule"),
+                _("Could not update Task Scheduler: {exc}").format(exc=schedule_error),
+            )
         self._update_backup_size()
+
+    def _schedule_times_from_form(self) -> dict[str, str]:
+        return {
+            "daily": self.time_day.time().toString("HH:mm"),
+            "weekly": self.time_week.time().toString("HH:mm"),
+        }
+
+    def _set_schedule_times(self, times: dict[str, str]) -> None:
+        for key, widget in (("daily", self.time_day), ("weekly", self.time_week)):
+            value = QtCore.QTime.fromString(times.get(key, "03:00"), "HH:mm")
+            widget.setTime(value if value.isValid() else QtCore.QTime(3, 0))
+
+    def _set_weekday(self, weekday: str) -> None:
+        index = self.weekday.findData(weekday)
+        self.weekday.setCurrentIndex(index if index >= 0 else 0)
 
     def _apply_form_to_config(self) -> None:
         self.cfg.target_dir = self.le_target.text().strip()

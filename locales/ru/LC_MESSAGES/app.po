@@ -446,6 +446,60 @@ msgstr ""
 msgid "Schedule"
 msgstr "Расписание"
 
+msgid "Daily"
+msgstr "Ежедневно"
+
+msgid "Weekly (Mon)"
+msgstr "Еженедельно (пн)"
+
+msgid "Weekly"
+msgstr "Еженедельно"
+
+msgid "Mon"
+msgstr "Пн"
+
+msgid "Tue"
+msgstr "Вт"
+
+msgid "Wed"
+msgstr "Ср"
+
+msgid "Thu"
+msgstr "Чт"
+
+msgid "Fri"
+msgstr "Пт"
+
+msgid "Sat"
+msgstr "Сб"
+
+msgid "Sun"
+msgstr "Вс"
+
+msgid "Mo"
+msgstr "Пн"
+
+msgid "Tu"
+msgstr "Вт"
+
+msgid "We"
+msgstr "Ср"
+
+msgid "Th"
+msgstr "Чт"
+
+msgid "Fr"
+msgstr "Пт"
+
+msgid "Sa"
+msgstr "Сб"
+
+msgid "Su"
+msgstr "Вс"
+
+msgid "Day of week"
+msgstr "День недели"
+
 #: src/gui/MainWindow.py:184
 msgid "Daily at 03:00"
 msgstr "Каждый день в 03:00"
@@ -494,6 +548,9 @@ msgstr "Не сохранено"
 
 msgid "Settings were not saved because the backup target could not be updated: {exc}"
 msgstr "Настройки не сохранены: не удалось обновить целевую папку резервной копии: {exc}"
+
+msgid "Could not update Task Scheduler: {exc}"
+msgstr "Не удалось обновить Планировщик заданий: {exc}"
 
 #: src/gui/MainWindow.py:231
 msgid "Version history"
