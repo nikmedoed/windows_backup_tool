@@ -5,7 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
 
-from src.config import PathRule, Settings
+from src.config import PathRule, Settings, merge_source_rule
 
 
 class ConfigSyncTests(unittest.TestCase):
@@ -17,6 +17,32 @@ class ConfigSyncTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def test_repeated_source_is_merged_case_insensitively(self) -> None:
+        sources = [PathRule(source=str(self.root / "Project"), excludes=["cache", "build"])]
+
+        merged = merge_source_rule(
+            sources,
+            str(self.root / "project"),
+            ["BUILD", "logs"],
+        )
+
+        self.assertEqual(len(sources), 1)
+        self.assertIs(merged, sources[0])
+        self.assertEqual(sources[0].excludes, ["cache", "build", "logs"])
+
+    def test_payload_duplicate_sources_are_merged(self) -> None:
+        source = str(self.root / "project")
+        settings = Settings.from_payload({
+            "target_dir": str(self.target),
+            "sources": [
+                {"source": source, "excludes": ["cache"]},
+                {"source": source.upper(), "excludes": ["logs", "CACHE"]},
+            ],
+        })
+
+        self.assertEqual(len(settings.sources), 1)
+        self.assertEqual(settings.sources[0].excludes, ["cache", "logs"])
 
     def test_load_uses_settings_from_active_target(self) -> None:
         local = Settings(
@@ -60,4 +86,3 @@ class ConfigSyncTests(unittest.TestCase):
         loaded = Settings.from_payload({"target_dir": "C:/backup", "sources": []})
 
         self.assertFalse(loaded.scheduled_zip_snapshots)
-

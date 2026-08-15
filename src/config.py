@@ -23,6 +23,20 @@ class PathRule:
             raise ValueError(f"Invalid PathRule.excludes: {self.excludes!r}")
 
 
+def merge_source_rule(sources: List[PathRule], source: str, excludes: List[str]) -> PathRule:
+    """Add or update a source rule, keeping one rule per physical path."""
+    candidate = PathRule(source=source, excludes=excludes)
+    source_key = _source_path_key(source)
+    for rule in sources:
+        if _source_path_key(rule.source) == source_key:
+            rule.excludes = dedupe_strings([*rule.excludes, *candidate.excludes])
+            return rule
+
+    rule = PathRule(source=source, excludes=dedupe_strings(candidate.excludes))
+    sources.append(rule)
+    return rule
+
+
 @dataclass
 class Settings:
     target_dir: str
@@ -207,14 +221,19 @@ def _load_sources(raw_sources: Any) -> tuple[list[PathRule], list[str]]:
     for raw in raw_sources:
         if not isinstance(raw, dict):
             raise ValueError(f"Invalid source rule: {raw!r}")
-        sources.append(PathRule(
-            source=raw["source"],
-            excludes=raw.get("excludes", []),
-        ))
+        excludes = raw.get("excludes", [])
+        if not isinstance(excludes, list) or not all(isinstance(e, str) for e in excludes):
+            raise ValueError(f"Invalid PathRule.excludes: {excludes!r}")
+        merge_source_rule(sources, raw["source"], excludes)
         migrated_patterns.extend(
             load_exclude_patterns(raw.get("exclude_patterns", []), "PathRule.exclude_patterns")
         )
     return sources, migrated_patterns
+
+
+def _source_path_key(source: str) -> str:
+    """Return a case-insensitive identity key for a configured source path."""
+    return str(Path(source).expanduser().resolve()).casefold()
 
 
 def target_settings_file(target_dir: str | Path) -> Path:

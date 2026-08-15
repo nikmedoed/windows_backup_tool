@@ -10,7 +10,7 @@ from PySide6 import QtWidgets, QtCore, QtGui
 from PySide6.QtWidgets import QSizePolicy
 
 from src.app_version import VERSION
-from src.config import Settings, PathRule
+from src.config import Settings, merge_source_rule
 from src.exclusions import gitignore_excludes
 from src.i18n import _, get_language, set_language
 from src.scheduler import schedule_status, delete, schedule
@@ -149,13 +149,14 @@ class MainWindow(QtWidgets.QMainWindow):
         src_layout.setSpacing(6)
         src_header = QtWidgets.QHBoxLayout()
         src_header.setContentsMargins(0, 0, 0, 0)
-        src_header.addWidget(QtWidgets.QLabel(_("Sources:")))
+        self.lbl_sources = QtWidgets.QLabel()
+        src_header.addWidget(self.lbl_sources)
         src_header.addStretch(1)
         self.size_label = QtWidgets.QLabel()
         self.size_label.setStyleSheet("color: #8ab4f8;")
         src_header.addWidget(self.size_label)
         src_layout.addLayout(src_header)
-        src_layout.addWidget(self.lst_src)
+        src_layout.addWidget(self.lst_src, 1)
         btn_src_layout = QtWidgets.QHBoxLayout()
         btn_src_layout.setContentsMargins(0, 0, 0, 0)
         btn_src_layout.setSpacing(8)
@@ -424,7 +425,9 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout = QtWidgets.QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(6)
-        left_layout.addWidget(_panel(src_layout), 1)
+        # Both source list and log grow with the window. The log receives a
+        # little more room because it commonly contains more rows.
+        left_layout.addWidget(_panel(src_layout), 2)
         left_layout.addWidget(_panel(options_layout))
         left_layout.addWidget(_panel(settings_actions))
         left_layout.addWidget(_panel(backup_actions))
@@ -512,6 +515,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lst_src.clear()
         for rule in self.cfg.sources:
             self.lst_src.addItem(rule.source)
+        self.lbl_sources.setText(_("Sources ({count}):").format(count=len(self.cfg.sources)))
         self.lst_src.setCurrentRow(0 if self.cfg.sources else -1)
         self._refresh_excludes()
         self._refresh_patterns()
@@ -644,7 +648,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 if self.chk_import_gitignore.isChecked()
                 else []
             )
-            self.cfg.sources.append(PathRule(source=directory, excludes=excludes))
+            merge_source_rule(self.cfg.sources, directory, excludes)
             self._load_fields()
 
     def _delete_source(self):

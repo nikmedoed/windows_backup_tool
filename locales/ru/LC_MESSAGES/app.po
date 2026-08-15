@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: muromcevn@gmail.com\n"
-"POT-Creation-Date: 2026-07-23 21:18+0400\n"
+"POT-Creation-Date: 2026-08-15 15:35+0400\n"
 "PO-Revision-Date: 2025-04-28 16:12+0400\n"
 "Last-Translator: Nikita Muromtsev <muromcevn@gmail.com>\n"
 "Language: ru\n"
@@ -36,11 +36,11 @@ msgstr "Запуск в режиме разработки (при повышен
 msgid "Enable debug traversal log (optional path)"
 msgstr "Включить отладочный лог обхода (необязательный путь)"
 
-#: main.py:49
+#: main.py:48
 msgid "No saved configuration, run GUI first."
 msgstr "Конфигурация не найдена, запустите графический интерфейс."
 
-#: main.py:63
+#: main.py:73
 #, python-brace-format
 msgid "Tray icon mode failed ({exc}). Falling back to console output."
 msgstr "Режим трея не сработал ({exc}). Возвращаемся к выводу в консоль."
@@ -348,8 +348,8 @@ msgstr "Бэкап завершён с ошибками. См. {0}"
 msgid "Zip snapshot completed: {count} archives in {folder}"
 msgstr ""
 
-#: src/gui/ExcludeDialog.py:25 src/gui/MainWindow.py:127
-#: src/gui/MainWindow.py:132
+#: src/gui/ExcludeDialog.py:25 src/gui/MainWindow.py:167
+#: src/gui/MainWindow.py:172
 msgid "Exclusions"
 msgstr "Исключения"
 
@@ -398,283 +398,265 @@ msgstr "Размер"
 msgid "Selected: {count} • Size: {size}"
 msgstr "Выбрано: {count} • Размер: {size}"
 
-#: src/gui/MainWindow.py:42 src/gui/MainWindow.py:64
+#: src/gui/MainWindow.py:79 src/gui/MainWindow.py:102
 msgid "Backup Tool Settings"
 msgstr "Настройки копирования"
 
-#: src/gui/MainWindow.py:75
+#: src/gui/MainWindow.py:113
 msgid "Backup target:"
 msgstr "Папка назначения:"
 
-#: src/gui/MainWindow.py:83
+#: src/gui/MainWindow.py:122
 msgid "Switch language"
 msgstr "Переключить язык"
 
-#: src/gui/MainWindow.py:113
-msgid "Sources:"
-msgstr "Источники:"
-
-#: src/gui/MainWindow.py:124
+#: src/gui/MainWindow.py:164
 msgid "+ Add source"
 msgstr "+ Добавить источник"
 
-#: src/gui/MainWindow.py:125
+#: src/gui/MainWindow.py:165
 msgid "– Delete"
 msgstr "– Удалить"
 
-#: src/gui/MainWindow.py:126
+#: src/gui/MainWindow.py:166
 msgid "Clear"
 msgstr "Очистить"
 
-#: src/gui/MainWindow.py:138 src/gui/MainWindow.py:559
-msgid "Exclusions for source:"
-msgstr "Исключения для источника:"
-
-#: src/gui/MainWindow.py:150
-msgid "Global exclude patterns:"
-msgstr ""
-
-#: src/gui/MainWindow.py:170
-msgid "+ Pattern"
-msgstr ""
-
-#: src/gui/MainWindow.py:171
-msgid "Edit patterns"
-msgstr ""
-
-#: src/gui/MainWindow.py:180
-msgid "Schedule"
-msgstr "Расписание"
-
-msgid "Daily"
-msgstr "Ежедневно"
-
-msgid "Weekly (Mon)"
-msgstr "Еженедельно (пн)"
-
-msgid "Weekly"
-msgstr "Еженедельно"
-
-msgid "Mon"
-msgstr "Пн"
-
-msgid "Tue"
-msgstr "Вт"
-
-msgid "Wed"
-msgstr "Ср"
-
-msgid "Thu"
-msgstr "Чт"
-
-msgid "Fri"
-msgstr "Пт"
-
-msgid "Sat"
-msgstr "Сб"
-
-msgid "Sun"
-msgstr "Вс"
-
-msgid "Mo"
-msgstr "Пн"
-
-msgid "Tu"
-msgstr "Вт"
-
-msgid "We"
-msgstr "Ср"
-
-msgid "Th"
-msgstr "Чт"
-
-msgid "Fr"
-msgstr "Пт"
-
-msgid "Sa"
-msgstr "Сб"
-
-msgid "Su"
-msgstr "Вс"
-
-msgid "Day of week"
-msgstr "День недели"
-
-#: src/gui/MainWindow.py:184
-msgid "Daily at 03:00"
-msgstr "Каждый день в 03:00"
-
-#: src/gui/MainWindow.py:185
-msgid "Weekly (Mon at 03:00)"
-msgstr "Каждую неделю (Пн в 03:00)"
-
-#: src/gui/MainWindow.py:186
-msgid "On logon"
-msgstr "При входе в систему"
-
-#: src/gui/MainWindow.py:187
-msgid "On idle (20 min)"
-msgstr "В простое (20 мин)"
-
-#: src/gui/MainWindow.py:188
-msgid "On unlock"
-msgstr "При разблокировке"
-
-#: src/gui/MainWindow.py:204
-msgid "Background run"
-msgstr "Настройки запуска"
-
-#: src/gui/MainWindow.py:216
-msgid "Wait before closing console window"
-msgstr "Ждать закрытия консоли"
-
-#: src/gui/MainWindow.py:217
-msgid "Show console progress"
-msgstr "Прогресс в консоли"
-
-#: src/gui/MainWindow.py:218
-msgid "Show tray icon while backing up"
-msgstr "Трей-значок при копировании"
-
-#: src/gui/MainWindow.py:219
-msgid "Show floating bubble when finished"
-msgstr "Уведомление после завершения"
-
-msgid "Scheduled runs create ZIP snapshots"
-msgstr "Автозапуск создаёт ZIP-снимки"
-
-msgid "Not saved"
-msgstr "Не сохранено"
-
-msgid "Settings were not saved because the backup target could not be updated: {exc}"
-msgstr "Настройки не сохранены: не удалось обновить целевую папку резервной копии: {exc}"
-
-msgid "Could not update Task Scheduler: {exc}"
-msgstr "Не удалось обновить Планировщик заданий: {exc}"
-
-#: src/gui/MainWindow.py:231
-msgid "Version history"
-msgstr "История версий"
-
-#: src/gui/MainWindow.py:235
-msgid "Keep:"
-msgstr "Хранить:"
-
-#: src/gui/MainWindow.py:241 src/gui/MainWindow.py:245
-msgid "Unlimited"
-msgstr "Без лимита"
-
-#: src/gui/MainWindow.py:281 src/gui/MainWindow.py:634
-msgid "Settings"
-msgstr "Настройки"
-
-#: src/gui/MainWindow.py:282
-msgid "Save settings"
-msgstr "Сохранить"
-
-#: src/gui/MainWindow.py:287
-msgid "Reload saved"
-msgstr "Загрузить"
-
-#: src/gui/MainWindow.py:290
-msgid "Exit"
-msgstr "Выход"
-
-#: src/gui/MainWindow.py:302
-msgid "Restore version"
-msgstr "Восстановить"
-
-#: src/gui/MainWindow.py:305
-msgid "Run backup"
-msgstr "Бекап"
-
-#: src/gui/MainWindow.py:308
-msgid "Zip"
-msgstr ""
-
-#: src/gui/MainWindow.py:311
-msgid "Last backup:"
-msgstr "Последний:"
-
-#: src/gui/MainWindow.py:512
-msgid "Select target directory"
-msgstr "Выберите папку назначения"
-
-#: src/gui/MainWindow.py:526
-msgid "Add source directory"
-msgstr "Добавить папку источника"
-
-#: src/gui/MainWindow.py:530
+#: src/gui/MainWindow.py:175
 msgid ".gitignore"
 msgstr ".gitignore"
 
-#: src/gui/MainWindow.py:533
+#: src/gui/MainWindow.py:178
 msgid "Create exclusions from .gitignore files once when adding a source."
-msgstr "Однократно создать исключения из файлов .gitignore при добавлении источника."
+msgstr ""
+"Однократно создать исключения из файлов .gitignore при добавлении "
+"источника."
 
-#: src/gui/MainWindow.py:562
+#: src/gui/MainWindow.py:184 src/gui/MainWindow.py:666
+msgid "Exclusions for source:"
+msgstr "Исключения для источника:"
+
+#: src/gui/MainWindow.py:196
+msgid "Global exclude patterns:"
+msgstr ""
+
+#: src/gui/MainWindow.py:216
+msgid "+ Pattern"
+msgstr ""
+
+#: src/gui/MainWindow.py:217
+msgid "Edit patterns"
+msgstr ""
+
+#: src/gui/MainWindow.py:226 src/gui/MainWindow.py:763
+msgid "Schedule"
+msgstr "Расписание"
+
+#: src/gui/MainWindow.py:230
+msgid "Daily"
+msgstr "Ежедневно"
+
+#: src/gui/MainWindow.py:231
+msgid "Weekly"
+msgstr "Еженедельно"
+
+#: src/gui/MainWindow.py:240
+msgid "Mo"
+msgstr "Пн"
+
+#: src/gui/MainWindow.py:240
+msgid "Tu"
+msgstr "Вт"
+
+#: src/gui/MainWindow.py:240
+msgid "We"
+msgstr "Ср"
+
+#: src/gui/MainWindow.py:241
+msgid "Th"
+msgstr "Чт"
+
+#: src/gui/MainWindow.py:241
+msgid "Fr"
+msgstr "Пт"
+
+#: src/gui/MainWindow.py:241
+msgid "Sa"
+msgstr "Сб"
+
+#: src/gui/MainWindow.py:241
+msgid "Su"
+msgstr "Вс"
+
+#: src/gui/MainWindow.py:244
+msgid "Day of week"
+msgstr "День недели"
+
+#: src/gui/MainWindow.py:246
+msgid "On logon"
+msgstr "При входе в систему"
+
+#: src/gui/MainWindow.py:247
+msgid "On idle (20 min)"
+msgstr "В простое (20 мин)"
+
+#: src/gui/MainWindow.py:248
+msgid "On unlock"
+msgstr "При разблокировке"
+
+#: src/gui/MainWindow.py:275
+msgid "Background run"
+msgstr "Настройки запуска"
+
+#: src/gui/MainWindow.py:288
+msgid "Wait before closing console window"
+msgstr "Ждать закрытия консоли"
+
+#: src/gui/MainWindow.py:289
+msgid "Show console progress"
+msgstr "Прогресс в консоли"
+
+#: src/gui/MainWindow.py:290
+msgid "Show tray icon while backing up"
+msgstr "Трей-значок при копировании"
+
+#: src/gui/MainWindow.py:291
+msgid "Show floating bubble when finished"
+msgstr "Уведомление после завершения"
+
+#: src/gui/MainWindow.py:292
+msgid "Scheduled runs create ZIP snapshots"
+msgstr "Автозапуск создаёт ZIP-снимки"
+
+#: src/gui/MainWindow.py:304
+msgid "Version history"
+msgstr "История версий"
+
+#: src/gui/MainWindow.py:308
+msgid "Keep:"
+msgstr "Хранить:"
+
+#: src/gui/MainWindow.py:314 src/gui/MainWindow.py:318
+msgid "Unlimited"
+msgstr "Без лимита"
+
+#: src/gui/MainWindow.py:354 src/gui/MainWindow.py:635
+#: src/gui/MainWindow.py:755
+msgid "Settings"
+msgstr "Настройки"
+
+#: src/gui/MainWindow.py:355
+msgid "Save settings"
+msgstr "Сохранить"
+
+#: src/gui/MainWindow.py:360
+msgid "Reload saved"
+msgstr "Загрузить"
+
+#: src/gui/MainWindow.py:363
+msgid "Exit"
+msgstr "Выход"
+
+#: src/gui/MainWindow.py:375
+msgid "Restore version"
+msgstr "Восстановить"
+
+#: src/gui/MainWindow.py:378
+msgid "Run backup"
+msgstr "Бекап"
+
+#: src/gui/MainWindow.py:381
+msgid "Zip"
+msgstr ""
+
+#: src/gui/MainWindow.py:384
+msgid "Last backup:"
+msgstr "Последний:"
+
+#: src/gui/MainWindow.py:516
+#, python-brace-format
+msgid "Sources ({count}):"
+msgstr "Источники ({count}):"
+
+#: src/gui/MainWindow.py:616
+msgid "Select target directory"
+msgstr "Выберите папку назначения"
+
+#: src/gui/MainWindow.py:639 src/gui/MainWindow.py:799
+msgid "Loaded"
+msgstr "Загружено"
+
+#: src/gui/MainWindow.py:639 src/gui/MainWindow.py:746
+msgid "Saved"
+msgstr "Сохранено"
+
+#: src/gui/MainWindow.py:642
+msgid "Add source directory"
+msgstr "Добавить папку источника"
+
+#: src/gui/MainWindow.py:669
 #, python-brace-format
 msgid "Exclusions for: {source}"
 msgstr "Исключения для: {source}"
 
-#: src/gui/MainWindow.py:588
+#: src/gui/MainWindow.py:695
 msgid "Add pattern"
 msgstr ""
 
-#: src/gui/MainWindow.py:589
+#: src/gui/MainWindow.py:696
 msgid "Glob pattern:"
 msgstr ""
 
-#: src/gui/MainWindow.py:612 src/gui/MainWindow.py:652
-#: src/gui/MainWindow.py:664 src/gui/MainWindow.py:765
-#: src/gui/MainWindow.py:768 src/gui/MainWindow.py:794
-#: src/gui/MainWindow.py:797 src/gui/MainWindow.py:871
-#: src/gui/MainWindow.py:881 src/gui/MainWindow.py:889
+#: src/gui/MainWindow.py:719 src/gui/MainWindow.py:795
+#: src/gui/MainWindow.py:807 src/gui/MainWindow.py:908
+#: src/gui/MainWindow.py:911 src/gui/MainWindow.py:937
+#: src/gui/MainWindow.py:940 src/gui/MainWindow.py:1014
+#: src/gui/MainWindow.py:1024 src/gui/MainWindow.py:1032
 #: src/gui/RestoreDialog.py:146 src/gui/RestoreDialog.py:150
 msgid "Error"
 msgstr "Ошибка"
 
-#: src/gui/MainWindow.py:612 src/gui/MainWindow.py:664
-#: src/gui/MainWindow.py:765 src/gui/MainWindow.py:794
+#: src/gui/MainWindow.py:719 src/gui/MainWindow.py:807
+#: src/gui/MainWindow.py:908 src/gui/MainWindow.py:937
 msgid "Please specify the target directory"
 msgstr "Укажите папку назначения"
 
-#: src/gui/MainWindow.py:629
-msgid "Saved"
-msgstr "Сохранено"
+#: src/gui/MainWindow.py:746
+msgid "Not saved"
+msgstr "Не сохранено"
 
-#: src/gui/MainWindow.py:629
-#, fuzzy
-msgid "Saved locally"
-msgstr "Выбрать всё"
-
-#: src/gui/MainWindow.py:635
+#: src/gui/MainWindow.py:756
 #, python-brace-format
-msgid "Saved local settings, but could not write settings to backup target: {exc}"
+msgid ""
+"Settings were not saved because the backup target could not be updated: "
+"{exc}"
 msgstr ""
+"Настройки не сохранены: не удалось обновить целевую папку резервной "
+"копии: {exc}"
 
-#: src/gui/MainWindow.py:652
+#: src/gui/MainWindow.py:764
+#, python-brace-format
+msgid "Could not update Task Scheduler: {exc}"
+msgstr "Не удалось обновить Планировщик заданий: {exc}"
+
+#: src/gui/MainWindow.py:795
 msgid "No settings found"
 msgstr "Настройки не найдены"
 
-#: src/gui/MainWindow.py:656
-msgid "Loaded"
-msgstr "Загружено"
-
-#: src/gui/MainWindow.py:674 src/gui/MainWindow.py:680
-#: src/gui/MainWindow.py:693
+#: src/gui/MainWindow.py:817 src/gui/MainWindow.py:823
+#: src/gui/MainWindow.py:836
 msgid "Restore"
 msgstr "Восстановить"
 
-#: src/gui/MainWindow.py:674
+#: src/gui/MainWindow.py:817
 msgid "No backup versions found"
 msgstr "Версии бэкапа не найдены"
 
-#: src/gui/MainWindow.py:693
+#: src/gui/MainWindow.py:836
 msgid "Nothing to restore for the selected version"
 msgstr "Для выбранной версии нечего восстанавливать"
 
-#: src/gui/MainWindow.py:697
+#: src/gui/MainWindow.py:840
 #, python-brace-format
 msgid ""
 "Apply selected restore changes? Create: {create}, replace: {replace}, "
@@ -683,54 +665,54 @@ msgstr ""
 "Применить выбранные изменения восстановления? Создать: {create}, "
 "заменить: {replace}, удалить: {delete}."
 
-#: src/gui/MainWindow.py:704 src/gui/MainWindow.py:717
+#: src/gui/MainWindow.py:847 src/gui/MainWindow.py:860
 msgid "Confirm restore"
 msgstr "Подтвердите восстановление"
 
-#: src/gui/MainWindow.py:712
+#: src/gui/MainWindow.py:855
 #, python-brace-format
 msgid "Export selected full-version files to the output folder? Files: {count}."
 msgstr ""
 "Экспортировать выбранные файлы полной версии в выходную папку? Файлов: "
 "{count}."
 
-#: src/gui/MainWindow.py:750
+#: src/gui/MainWindow.py:893
 msgid "Size: calculating…"
 msgstr "Размер: расчёт…"
 
-#: src/gui/MainWindow.py:759
+#: src/gui/MainWindow.py:902
 #, python-brace-format
 msgid "Size: {size}"
 msgstr "Размер: {size}"
 
-#: src/gui/MainWindow.py:768 src/gui/MainWindow.py:797
+#: src/gui/MainWindow.py:911 src/gui/MainWindow.py:940
 #, fuzzy
 msgid "Please add at least one source directory"
 msgstr "Добавить папку источника"
 
-#: src/gui/MainWindow.py:820
+#: src/gui/MainWindow.py:963
 #, python-brace-format
 msgid "Zip snapshot failed: {exc}"
 msgstr ""
 
-#: src/gui/MainWindow.py:843
+#: src/gui/MainWindow.py:986
 #, python-brace-format
 msgid "Backup Tool version: {version}"
 msgstr "Версия Backup Tool: {version}"
 
-#: src/gui/MainWindow.py:845
+#: src/gui/MainWindow.py:988
 #, python-brace-format
 msgid ""
 "Author: Muromtsev Nikita. Other useful utilities and support the author: "
 "{url}"
 msgstr "Автор: Муромцев Никита. Другие полезные утилиты и поддержать автора: {url}"
 
-#: src/gui/MainWindow.py:863
+#: src/gui/MainWindow.py:1006
 msgid "never"
 msgstr ""
 
-#: src/gui/MainWindow.py:871 src/gui/MainWindow.py:881
-#: src/gui/MainWindow.py:889
+#: src/gui/MainWindow.py:1014 src/gui/MainWindow.py:1024
+#: src/gui/MainWindow.py:1032
 msgid "Done"
 msgstr "Готово"
 
@@ -1085,3 +1067,41 @@ msgstr "Конфликтов: {count}"
 
 #~ msgid " versions"
 #~ msgstr " версий"
+
+#~ msgid "Weekly (Mon)"
+#~ msgstr "Еженедельно (пн)"
+
+#~ msgid "Mon"
+#~ msgstr "Пн"
+
+#~ msgid "Tue"
+#~ msgstr "Вт"
+
+#~ msgid "Wed"
+#~ msgstr "Ср"
+
+#~ msgid "Thu"
+#~ msgstr "Чт"
+
+#~ msgid "Fri"
+#~ msgstr "Пт"
+
+#~ msgid "Sat"
+#~ msgstr "Сб"
+
+#~ msgid "Sun"
+#~ msgstr "Вс"
+
+#~ msgid "Daily at 03:00"
+#~ msgstr "Каждый день в 03:00"
+
+#~ msgid "Weekly (Mon at 03:00)"
+#~ msgstr "Каждую неделю (Пн в 03:00)"
+
+#~ msgid "Saved locally"
+#~ msgstr "Выбрать всё"
+
+#~ msgid ""
+#~ "Saved local settings, but could not "
+#~ "write settings to backup target: {exc}"
+#~ msgstr ""
