@@ -194,6 +194,7 @@ The updater is intentionally quiet:
 - it checks at most once every 12 hours, with a shorter retry backoff after network errors;
 - it downloads the `BackupTool.exe` release asset in a detached helper process, so GUI and scheduled `--backup` runs are not delayed;
 - it keeps the downloaded update under `%APPDATA%\BackupTool\updates`;
+- backups and ZIP snapshots skip this disposable updater directory, including locks and partial downloads, while still including `BackupTool\config.json` when it is in scope;
 - it replaces the running executable only after the parent process exits, because Windows locks active `.exe` files;
 - if replacement fails because another instance is still running, the staged update remains and is retried on a later launch.
 

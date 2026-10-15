@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Final, Iterable, Optional
 
-from src.config import PathRule
+from src.config import CONFIG_FILE, PathRule
 from src.exclusions import ExclusionMatcher, is_reparse_or_symlink
 
 _MTIME_TOLERANCE: Final[float] = 2.0
@@ -104,6 +104,9 @@ def iter_files(
         return
 
     matcher = ExclusionMatcher(root, rule.excludes, exclude_patterns or [])
+    # Updater downloads, helper executables and locks are disposable runtime
+    # state. They can change or disappear while an AppData backup is running.
+    updater_dir = (CONFIG_FILE.parent / "updates").resolve()
 
     def _fmt(p: Path) -> str:
         try:
@@ -122,6 +125,9 @@ def iter_files(
     stack = [root]
     while stack:
         cur = stack.pop()
+        if cur == updater_dir or cur.is_relative_to(updater_dir):
+            _emit("SKIP_UPDATER_RUNTIME", _fmt(cur))
+            continue
         if matcher.skip(cur):
             _emit("SKIP_EXCLUDED", _fmt(cur))
             continue
