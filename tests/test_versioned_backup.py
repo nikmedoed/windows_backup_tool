@@ -768,7 +768,7 @@ class VersionedBackupTests(unittest.TestCase):
         loaded = Settings.load_from_target(self.target)
         self.assertIsNotNone(loaded)
         assert loaded is not None
-        self.assertEqual(loaded.target_dir, str(self.target))
+        self.assertEqual(Path(loaded.target_dir), self.target.resolve())
         self.assertEqual(loaded.sources[0].source, str(self.source))
         self.assertEqual(loaded.sources[0].excludes, ["local.secret"])
         self.assertEqual(loaded.exclude_patterns, ["__pycache__", "*.pyc"])
