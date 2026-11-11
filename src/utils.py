@@ -4,6 +4,7 @@ import io
 import math
 import os
 import shutil
+import stat
 import sys
 from datetime import datetime
 from functools import lru_cache
@@ -14,6 +15,35 @@ from src.config import CONFIG_FILE, PathRule
 from src.exclusions import ExclusionMatcher, is_reparse_or_symlink
 
 _MTIME_TOLERANCE: Final[float] = 2.0
+
+
+def _retry_readonly_file(path: Path, operation: Callable[[], None]) -> None:
+    """Retry a Windows file operation after clearing its read-only attribute."""
+    try:
+        operation()
+    except PermissionError:
+        if os.name != "nt":
+            raise
+        mode = path.stat().st_mode
+        if mode & stat.S_IWRITE:
+            raise
+        path.chmod(mode | stat.S_IWRITE)
+        try:
+            operation()
+        except BaseException:
+            try:
+                path.chmod(mode)
+            except OSError:
+                pass
+            raise
+
+
+def unlink_readonly(path: Path) -> None:
+    _retry_readonly_file(path, path.unlink)
+
+
+def replace_readonly(src: Path, dst: Path) -> None:
+    _retry_readonly_file(dst, lambda: os.replace(src, dst))
 
 
 def sha1(path: Path, buf_size: int = io.DEFAULT_BUFFER_SIZE * 16) -> str:

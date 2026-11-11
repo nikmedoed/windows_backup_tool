@@ -13,7 +13,7 @@ from typing import Callable, Optional
 from src.i18n import _
 from .config import PathRule, Settings
 from .exclusions import is_excluded_by_rule, nested_target_excludes
-from .utils import DebugLog, iter_files, notify_user, sha1
+from .utils import DebugLog, iter_files, notify_user, sha1, unlink_readonly, replace_readonly
 from .version_store import FileRecord, VersionStore, mirror_relative_for_source, source_roots_for_rules
 
 _PROGRESS_LOG_INTERVAL_SECONDS = 5.0
@@ -394,7 +394,7 @@ def run_backup(
             try:
                 archived_rel = store.prepare_archive_current(record.source_path, dst, run_id)
                 if dst.exists():
-                    dst.unlink()
+                    unlink_readonly(dst)
                 store.record_deleted(record, run_id, archived_rel)
                 stats.inc("deleted")
             except Exception as exc:
@@ -458,11 +458,11 @@ def _copy2_atomic(src: Path, dst: Path) -> None:
     tmp = dst.parent / f".{dst.name}.backup_tmp_{os.getpid()}_{time.time_ns()}"
     try:
         shutil.copy2(src, tmp, follow_symlinks=False)
-        os.replace(tmp, dst)
+        replace_readonly(tmp, dst)
     finally:
         try:
             if tmp.exists():
-                tmp.unlink()
+                unlink_readonly(tmp)
         except OSError:
             pass
 

@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from src.config import PathRule
 from src.exclusions import is_excluded_by_rule, nested_target_excludes
-from src.utils import iter_files, same_file
+from src.utils import iter_files, same_file, unlink_readonly, replace_readonly
 from src.version_store import SnapshotItem, VersionStore, mirror_relative_for_source
 
 _MTIME_TOLERANCE = 2.0
@@ -296,7 +296,7 @@ def apply_restore_plan(
             elif action.action == "delete":
                 if plan.mode == "original":
                     _archive_current_target(store, plan.run_id, action.target_path, log_cb=_log)
-                action.target_path.unlink()
+                unlink_readonly(action.target_path)
                 _log(f"Deleted {action.target_path}")
         except Exception as exc:
             ok = False
@@ -403,11 +403,11 @@ def _copy2_atomic(src: Path, dst: Path) -> None:
     tmp = dst.parent / f".{dst.name}.restore_tmp_{os.getpid()}_{time.time_ns()}"
     try:
         shutil.copy2(src, tmp, follow_symlinks=False)
-        os.replace(tmp, dst)
+        replace_readonly(tmp, dst)
     finally:
         try:
             if tmp.exists():
-                tmp.unlink()
+                unlink_readonly(tmp)
         except OSError:
             pass
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Iterable, Optional
 
-from src.utils import sha1
+from src.utils import sha1, unlink_readonly
 
 
 VERSION_DIR_NAME = ".backup_versions"
@@ -710,7 +710,7 @@ class VersionStore:
                     continue
                 try:
                     size = path.stat().st_size
-                    path.unlink()
+                    unlink_readonly(path)
                     deleted += 1
                     freed += size
                 except OSError:

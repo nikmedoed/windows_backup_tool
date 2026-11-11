@@ -1,5 +1,6 @@
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 from dataclasses import asdict
@@ -583,6 +584,42 @@ class VersionedBackupTests(unittest.TestCase):
             store.close()
 
         self.assertEqual(source_file.read_text(encoding="utf-8"), "version one")
+
+    @unittest.skipUnless(os.name == "nt", "Windows read-only file semantics")
+    def test_readonly_file_can_be_deleted_from_mirror_and_restored(self) -> None:
+        source_file = self.source / "git-object"
+        source_file.write_text("original", encoding="utf-8")
+        source_file.chmod(stat.S_IREAD)
+        self.run_backup()
+        source_file.chmod(stat.S_IWRITE)
+        source_file.unlink()
+
+        self.run_backup()
+        self.assertFalse(mirror_path_for_source(self.target, source_file).exists())
+        store = VersionStore(self.target)
+        try:
+            first = min(store.list_successful_runs(), key=lambda run: run.id)
+            plan = build_restore_plan(store, first.id, source_file, mode="original")
+            self.assertTrue(apply_restore_plan(plan, store, log_cb=lambda _m: None))
+            self.assertEqual(source_file.read_text(encoding="utf-8"), "original")
+        finally:
+            store.close()
+            source_file.chmod(stat.S_IWRITE)
+            for path in self.archive_files():
+                path.chmod(stat.S_IWRITE)
+
+    @unittest.skipUnless(os.name == "nt", "Windows read-only file semantics")
+    def test_readonly_mirror_can_be_replaced(self) -> None:
+        source_file = self.source / "git-object"
+        source_file.write_text("original", encoding="utf-8")
+        source_file.chmod(stat.S_IREAD)
+        self.run_backup()
+        source_file.chmod(stat.S_IWRITE)
+        source_file.write_text("changed contents", encoding="utf-8")
+        self.run_backup()
+        self.assertEqual(mirror_path_for_source(self.target, source_file).read_text(), "changed contents")
+        for path in self.archive_files():
+            path.chmod(stat.S_IWRITE)
 
     def test_file_absent_in_selected_version_is_delete_not_conflict(self) -> None:
         existing_file = self.source / "existing.txt"
